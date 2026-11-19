@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Пиксельная Ферма</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌾</text></svg>">
+</head>
+<body>
+  <div id="game-wrapper">
+    <!-- Retro Pixel HUD -->
+    <header class="hud-top">
+      <div class="hud-box">
+        <span class="hud-label">МОНЕТЫ:</span>
+        <span id="coinsVal" class="hud-value yellow">30</span>
+      </div>
+      <div class="hud-box">
+        <span class="hud-label">УРОЖАЙ:</span>
+        <span id="cropCountVal" class="hud-value green">0</span>
+      </div>
+      <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ ВСЁ</button>
+    </header>
+
+    <!-- Canvas -->
+    <main id="viewport">
+      <canvas id="farmCanvas"></canvas>
+    </main>
+
+    <!-- Bottom Controls -->
+    <footer class="hud-bottom">
+      <div class="hint-box">
+        💡 Кликните по свободной грядке, чтобы посадить пшеницу. Когда вырастет — кликните для сбора!
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="src/game.js"></script>
+</body>
+</html>

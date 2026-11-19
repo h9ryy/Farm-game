@@ -1,0 +1,133 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #6eb767;
+  font-family: 'Press Start 2P', monospace, sans-serif;
+  color: #3d2b1f;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+#game-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #72be6b;
+}
+
+/* TOP HUD */
+.hud-top {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  z-index: 20;
+  flex-wrap: wrap;
+}
+
+.hud-box {
+  background: #fff8e7;
+  border: 4px solid #7d5233;
+  box-shadow: inset -4px -4px 0px #e6d3af, inset 4px 4px 0px #ffffff, 0 4px 8px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.hud-label {
+  color: #8c6239;
+  font-weight: bold;
+}
+
+.hud-value {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.hud-value.yellow {
+  color: #d48b00;
+}
+
+.hud-value.green {
+  color: #27ae60;
+}
+
+.pixel-btn {
+  font-family: 'Press Start 2P', monospace, sans-serif;
+  border: 4px solid #7d5233;
+  cursor: pointer;
+  padding: 11px 16px;
+  font-size: 11px;
+  transition: transform 0.05s;
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+}
+
+.sell-btn {
+  background: #ffb703;
+  color: #4a2800;
+  box-shadow: inset -4px -4px 0px #d48b00, inset 4px 4px 0px #ffea9f, 0 4px 8px rgba(0, 0, 0, 0.15);
+  margin-left: auto;
+}
+
+/* VIEWPORT & CANVAS */
+#viewport {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#farmCanvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+}
+
+/* BOTTOM HINT */
+.hud-bottom {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hint-box {
+  background: rgba(255, 248, 231, 0.95);
+  border: 4px solid #7d5233;
+  box-shadow: inset -3px -3px 0px #e6d3af, inset 3px 3px 0px #ffffff, 0 4px 10px rgba(0, 0, 0, 0.15);
+  padding: 10px 18px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #4a3525;
+  text-align: center;
+  max-width: 650px;
+}
