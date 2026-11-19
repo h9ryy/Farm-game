@@ -101,16 +101,7 @@ class PixelFarm {
       }
     };
 
-    this.canvas.addEventListener('click', (e) => handleClick(e.clientX, e.clientY));
-
-    // Touch support for phones
-    this.canvas.addEventListener('touchstart', (e) => {
-      sound.ensureContext();
-      if (e.touches.length > 0) {
-        const touch = e.touches[0];
-        handleClick(touch.clientX, touch.clientY);
-      }
-    }, { passive: true });
+    this.canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); handleClick(e.clientX, e.clientY); });
 
     // Track mouse hover
     this.canvas.addEventListener('mousemove', (e) => {

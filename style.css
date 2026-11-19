@@ -104,6 +104,7 @@ html, body {
   display: block;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
+  touch-action: none;
   image-rendering: crisp-edges;
   cursor: crosshair;
 }
