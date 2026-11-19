@@ -12,29 +12,34 @@
 </head>
 <body>
   <div id="game-wrapper">
-    <!-- Retro Pixel HUD -->
+    <!-- Верхняя панель -->
     <header class="hud-top">
       <div class="hud-box">
-        <span class="hud-label">МОНЕТЫ:</span>
+        <span class="hud-label">💰</span>
         <span id="coinsVal" class="hud-value yellow">30</span>
       </div>
       <div class="hud-box">
-        <span class="hud-label">УРОЖАЙ:</span>
+        <span class="hud-label">🧺</span>
         <span id="cropCountVal" class="hud-value green">0</span>
       </div>
-      <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ ВСЁ</button>
+      <div class="hud-box level-box">
+        <span class="hud-label">УР.<span id="levelVal">1</span></span>
+        <div class="xp-bar"><div id="xpFill"></div></div>
+      </div>
+      <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ</button>
     </header>
 
-    <!-- Canvas -->
+    <!-- Поле -->
     <main id="viewport">
       <canvas id="farmCanvas"></canvas>
     </main>
 
-    <!-- Bottom Controls -->
+    <!-- Нижняя панель -->
     <footer class="hud-bottom">
-      <div class="hint-box">
-        💡 Кликните по свободной грядке, чтобы посадить пшеницу. Когда вырастет — кликните для сбора!
+      <div id="hint" class="hint-box">
+        Выбери семена внизу и нажми на грядку. Когда вырастет — нажми ещё раз!
       </div>
+      <div id="seedBar" class="seed-bar"></div>
     </footer>
   </div>
 
