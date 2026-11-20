@@ -28,6 +28,16 @@
       </div>
       <button id="shopBtn" class="pixel-btn shop-btn">🛒</button>
       <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ</button>
+      <div class="quest-box">
+        <div class="quest-top">
+          <span id="questText" class="quest-text"></span>
+          <span id="questReward" class="quest-reward"></span>
+        </div>
+        <div class="quest-bottom">
+          <div class="quest-bar"><div id="questFill"></div></div>
+          <span id="questCount" class="quest-count"></span>
+        </div>
+      </div>
     </header>
 
     <!-- Поле -->
@@ -52,6 +62,15 @@
         <button id="shopClose" class="pixel-btn close-btn">✕</button>
       </div>
       <div id="upgradeList"></div>
+    </div>
+  </div>
+
+  <!-- Всплывающее окно: возвращение, подарок дня -->
+  <div id="popup" class="modal hidden">
+    <div class="modal-card popup-card">
+      <div id="popupTitle" class="modal-title"></div>
+      <div id="popupBody" class="popup-body"></div>
+      <button id="popupBtn" class="pixel-btn popup-btn">ОК</button>
     </div>
   </div>
 

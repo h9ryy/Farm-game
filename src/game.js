@@ -10,6 +10,22 @@ const BASE = 96;      // базовый размер грядки при рис�
 const SAVE_VERSION = 2;
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
 
+// Быстрые цели. stat — что считаем (накопительно за всё время), target — сколько нужно, reward — монеты
+const QUESTS = [
+  { stat: 'harvested', target: 10, reward: 20, text: 'Собери 10 урожаев' },
+  { stat: 'earned', target: 100, reward: 30, text: 'Заработай 100 монет' },
+  { stat: 'plots', target: 1, reward: 40, text: 'Купи 1 грядку' },
+  { stat: 'harvested', target: 30, reward: 60, text: 'Собери 30 урожаев' },
+  { stat: 'upgrades', target: 1, reward: 80, text: 'Купи улучшение' },
+  { stat: 'earned', target: 600, reward: 120, text: 'Заработай 600 монет' },
+  { stat: 'harvested', target: 80, reward: 200, text: 'Собери 80 урожаев' },
+  { stat: 'plots', target: 4, reward: 250, text: 'Купи 4 грядки' },
+  { stat: 'earned', target: 3000, reward: 500, text: 'Заработай 3000 монет' },
+  { stat: 'harvested', target: 200, reward: 800, text: 'Собери 200 урожаев' },
+  { stat: 'upgrades', target: 6, reward: 1200, text: 'Купи 6 улучшений' },
+  { stat: 'earned', target: 20000, reward: 3000, text: 'Заработай 20000 монет' },
+];
+
 class PixelFarm {
   constructor() {
     this.canvas = document.getElementById('farmCanvas');
@@ -24,6 +40,15 @@ class PixelFarm {
     this.selectedCrop = 'wheat';
     this.tutorialDone = false;
     this._shopKey = '';
+    this.stats = { harvested: 0, planted: 0, earned: 0, upgrades: 0, plots: 0 };
+    this.questIndex = 0;
+    this.lastDaily = '';
+    this.streak = 0;
+    this.offlineGains = {};
+    this.awaySeconds = 0;
+    this.flyers = [];
+    this.popupQueue = [];
+    this._popupCb = null;
 
     this.plots = INITIAL_PLOTS.map((p) => ({
       id: p.id,
@@ -99,6 +124,7 @@ class PixelFarm {
 
     await sdk.init();
     await this.loadSave();
+    this.queuePopups();
 
     setInterval(() => this.saveGame(), 5000);
     document.addEventListener('visibilitychange', () => {
@@ -184,6 +210,8 @@ class PixelFarm {
       }
       this.coins -= plot.cost;
       plot.unlocked = true;
+      this.stats.plots += 1;
+      this.buzz(30);
       sound.playUnlock();
       this.addFloatingText(cx, cy, 'НОВАЯ ГРЯДКА!', '#7bed9f');
       this.spawnHarvestParticles(cx, cy);
@@ -205,6 +233,7 @@ class PixelFarm {
       plot.state = 'growing';
       plot.plantedAt = Date.now();
       plot.ripeAt = 0;
+      this.stats.planted += 1;
       sound.playPlant();
       this.addFloatingText(cx, cy, `-💰${crop.seedCost}`, '#ffde59');
       this.spawnDirtParticles(cx, cy);
@@ -238,6 +267,7 @@ class PixelFarm {
     plot.plantedAt = 0;
     plot.ripeAt = 0;
     this.inventory[crop.id] += 1;
+    this.stats.harvested += 1;
     this.xp += crop.sellPrice;
 
     if (auto) {
@@ -249,7 +279,11 @@ class PixelFarm {
       this.spawnHarvestParticles(cx, cy);
     }
 
+    this.flyItem(cx, cy, crop.icon, 'cropCountVal', 1);
+    if (!auto) this.buzz(15);
+
     if (this.level > levelBefore) {
+      this.buzz(40);
       sound.playUnlock();
       this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, `УРОВЕНЬ ${this.level}!`, '#ffde59', 20);
       const opened = Object.values(CROPS).filter((c) => c.levelReq === this.level);
@@ -270,7 +304,10 @@ class PixelFarm {
       return;
     }
     this.coins += total;
+    this.stats.earned += total;
     Object.keys(CROPS).forEach((id) => (this.inventory[id] = 0));
+    this.flyItem(this.canvas.width / 2, this.canvas.height / 2 - 40, '💰', 'coinsVal', 8);
+    this.buzz(25);
     sound.playSell();
     this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2 - 40, `+💰${total}`, '#ffde59', 20);
     this.spawnHarvestParticles(this.canvas.width / 2, this.canvas.height / 2 - 40);
@@ -301,6 +338,8 @@ class PixelFarm {
     }
     this.coins -= cost;
     this.upgrades[id] += 1;
+    this.stats.upgrades += 1;
+    this.buzz(30);
     sound.playUnlock();
     this.updateUI();
     this.saveGame();
@@ -322,6 +361,13 @@ class PixelFarm {
 
   setupUI() {
     document.getElementById('sellBtn').addEventListener('click', () => this.sellAll());
+    document.getElementById('popupBtn').addEventListener('click', () => {
+      const cb = this._popupCb;
+      this._popupCb = null;
+      this.hidePopup();
+      if (cb) cb();
+      this.nextPopup();
+    });
 
     const modal = document.getElementById('shopModal');
     const openShop = () => {
@@ -379,6 +425,7 @@ class PixelFarm {
   }
 
   updateUI() {
+    this.checkQuests();
     const lvl = this.level;
     let totalCrops = 0;
     Object.values(CROPS).forEach((c) => (totalCrops += this.inventory[c.id]));
@@ -397,6 +444,14 @@ class PixelFarm {
       pct = Math.round(((this.xp - from) / (to - from)) * 100);
     }
     document.getElementById('xpFill').style.width = `${Math.max(0, Math.min(100, pct))}%`;
+
+    // Быстрая цель
+    const q = this.questAt(this.questIndex);
+    const have = Math.min(this.stats[q.stat], q.target);
+    document.getElementById('questText').textContent = q.text;
+    document.getElementById('questReward').textContent = `+💰${q.reward}`;
+    document.getElementById('questFill').style.width = `${Math.round((have / q.target) * 100)}%`;
+    document.getElementById('questCount').textContent = `${have}/${q.target}`;
 
     // Панель семян
     document.querySelectorAll('.seed-btn').forEach((btn) => {
@@ -426,6 +481,11 @@ class PixelFarm {
       xp: this.xp,
       inventory: this.inventory,
       upgrades: this.upgrades,
+      stats: this.stats,
+      questIndex: this.questIndex,
+      lastDaily: this.lastDaily,
+      streak: this.streak,
+      savedAt: Date.now(),
       selectedCrop: this.selectedCrop,
       tutorialDone: this.tutorialDone,
       plots: this.plots.map((p) => ({
@@ -458,6 +518,15 @@ class PixelFarm {
           }
         });
       }
+      if (saved.stats) {
+        Object.keys(this.stats).forEach((k) => {
+          if (typeof saved.stats[k] === 'number') this.stats[k] = saved.stats[k];
+        });
+      }
+      if (typeof saved.questIndex === 'number') this.questIndex = saved.questIndex;
+      if (typeof saved.lastDaily === 'string') this.lastDaily = saved.lastDaily;
+      if (typeof saved.streak === 'number') this.streak = saved.streak;
+      if (typeof saved.savedAt === 'number') this.awaySeconds = (Date.now() - saved.savedAt) / 1000;
       this.tutorialDone = !!saved.tutorialDone;
       if (Array.isArray(saved.plots)) {
         saved.plots.forEach((sp) => {
@@ -468,6 +537,10 @@ class PixelFarm {
             p.state = sp.state;
             p.crop = sp.crop;
             p.plantedAt = sp.plantedAt;
+            // Созрело, пока игрока не было
+            if (sp.state === 'growing' && Date.now() - sp.plantedAt >= this.growTimeOf(CROPS[sp.crop]) * 1000) {
+              this.offlineGains[sp.crop] = (this.offlineGains[sp.crop] || 0) + 1;
+            }
           }
         });
       }
@@ -480,6 +553,135 @@ class PixelFarm {
 
     this.updateUI();
     this.resize();
+  }
+
+  // ---------- ЦЕЛИ, ОКНА, ЭФФЕКТЫ ЭТАПА 4 ----------
+  questAt(i) {
+    if (i < QUESTS.length) return QUESTS[i];
+    const n = i - QUESTS.length + 1;
+    const target = 200 + 150 * n;
+    return { stat: 'harvested', target, reward: 1500 * n, text: `Собери ${target} урожаев` };
+  }
+
+  checkQuests() {
+    let guard = 0;
+    while (guard++ < 10) {
+      const q = this.questAt(this.questIndex);
+      if (this.stats[q.stat] < q.target) break;
+      this.questIndex += 1;
+      this.coins += q.reward;
+      sound.playUnlock();
+      this.buzz(40);
+      const cx = this.canvas.width / 2;
+      const cy = this.canvas.height / 2;
+      this.addFloatingText(cx, cy - 60, 'ЗАДАНИЕ ВЫПОЛНЕНО!', '#ffde59', 14);
+      this.addFloatingText(cx, cy - 36, `+💰${q.reward}`, '#7bed9f', 14);
+      this.flyItem(cx, cy - 40, '💰', 'coinsVal', 8);
+    }
+  }
+
+  buzz(ms) {
+    if (navigator.vibrate) {
+      try { navigator.vibrate(ms); } catch (e) {}
+    }
+  }
+
+  // Иконки летят к счётчику
+  flyItem(x, y, icon, targetId, count = 1) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const c = this.canvas.getBoundingClientRect();
+    const tx = r.left + r.width / 2 - c.left;
+    const ty = r.top + r.height / 2 - c.top;
+    for (let i = 0; i < count; i++) {
+      const sx = x + (Math.random() - 0.5) * 30;
+      const sy = y + (Math.random() - 0.5) * 30;
+      this.flyers.push({ x: sx, y: sy, sx, sy, tx, ty, t: -i * 0.06, icon, targetId });
+    }
+  }
+
+  bump(targetId) {
+    const el = document.getElementById(targetId);
+    const box = el && el.closest('.hud-box');
+    if (!box) return;
+    box.classList.remove('bump');
+    void box.offsetWidth;
+    box.classList.add('bump');
+  }
+
+  dateKey(offsetDays) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  }
+
+  collectAllRipe() {
+    let n = 0;
+    this.plots.forEach((plot) => {
+      if (plot.state === 'ripe') {
+        const { px, py } = this.plotPos(plot);
+        this.harvestPlot(plot, px + this.tile / 2, py + this.tile / 2, true);
+        n += 1;
+      }
+    });
+    if (n > 0) {
+      sound.playHarvest();
+      this.buzz(30);
+    }
+  }
+
+  queuePopups() {
+    // 1. Что созрело, пока игрока не было
+    const gains = Object.entries(this.offlineGains);
+    if (gains.length > 0 && this.awaySeconds >= 30) {
+      const lines = gains.map(([id, n]) => `${CROPS[id].icon} × ${n}`).join('&nbsp;&nbsp;');
+      this.popupQueue.push({
+        title: 'С ВОЗВРАЩЕНИЕМ!',
+        body: `Пока тебя не было, созрело:<div class="popup-big">${lines}</div>`,
+        btn: 'ЗАБРАТЬ',
+        cb: () => this.collectAllRipe(),
+      });
+    }
+
+    // 2. Ежедневная награда (после первой посадки)
+    if (this.tutorialDone) {
+      const today = this.dateKey(0);
+      if (this.lastDaily !== today) {
+        const newStreak = this.lastDaily === this.dateKey(-1) ? this.streak + 1 : 1;
+        const reward = Math.round(20 * Math.min(newStreak, 7) * (1 + 0.5 * (this.level - 1)));
+        this.popupQueue.push({
+          title: 'ПОДАРОК ДНЯ',
+          body: `Серия: ${newStreak} дн.<div class="popup-big">+💰${reward}</div>Заходи каждый день: награда растёт!`,
+          btn: 'ЗАБРАТЬ',
+          cb: () => {
+            this.lastDaily = today;
+            this.streak = newStreak;
+            this.coins += reward;
+            this.flyItem(this.canvas.width / 2, this.canvas.height / 2, '💰', 'coinsVal', 8);
+            sound.playSell();
+            this.buzz(30);
+            this.updateUI();
+            this.saveGame();
+          },
+        });
+      }
+    }
+    this.nextPopup();
+  }
+
+  nextPopup() {
+    if (this.popupQueue.length === 0) return;
+    const p = this.popupQueue.shift();
+    this._popupCb = p.cb;
+    document.getElementById('popupTitle').textContent = p.title;
+    document.getElementById('popupBody').innerHTML = p.body;
+    document.getElementById('popupBtn').textContent = p.btn;
+    document.getElementById('popup').classList.remove('hidden');
+  }
+
+  hidePopup() {
+    document.getElementById('popup').classList.add('hidden');
   }
 
   // ---------- ЭФФЕКТЫ ----------
@@ -550,6 +752,21 @@ class PixelFarm {
       }
     });
 
+    for (let i = this.flyers.length - 1; i >= 0; i--) {
+      const f = this.flyers[i];
+      f.t += dt * 1.8;
+      if (f.t >= 1) {
+        this.bump(f.targetId);
+        this.flyers.splice(i, 1);
+        continue;
+      }
+      if (f.t > 0) {
+        const e = f.t * f.t;
+        f.x = f.sx + (f.tx - f.sx) * e;
+        f.y = f.sy + (f.ty - f.sy) * e;
+      }
+    }
+
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
       ft.y += ft.vy;
@@ -589,6 +806,17 @@ class PixelFarm {
       ctx.globalAlpha = Math.max(0, p.alpha);
       ctx.fillStyle = p.color;
       ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      ctx.restore();
+    });
+
+    this.flyers.forEach((f) => {
+      if (f.t < 0) return;
+      ctx.save();
+      ctx.font = `18px ${EMOJI_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(f.icon, Math.round(f.x), Math.round(f.y));
       ctx.restore();
     });
 

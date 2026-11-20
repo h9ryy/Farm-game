@@ -308,3 +308,83 @@ html, body {
   .up-name { font-size: 9px; }
   .up-buy { min-width: 64px; font-size: 8px; padding: 8px 4px; }
 }
+
+/* ---------- ЭТАП 4: ЦЕЛИ, ОКНА, ЭФФЕКТЫ ---------- */
+.quest-box {
+  flex: 1 1 100%;
+  background: #fff8e7;
+  border: 4px solid #7d5233;
+  box-shadow: inset -3px -3px 0px #e6d3af, inset 3px 3px 0px #ffffff, 0 4px 8px rgba(0, 0, 0, 0.15);
+  padding: 8px 12px;
+}
+
+.quest-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  margin-bottom: 6px;
+}
+
+.quest-text { color: #4a3525; }
+.quest-reward { color: #d48b00; white-space: nowrap; }
+
+.quest-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quest-bar {
+  flex: 1;
+  height: 10px;
+  background: #3d2b1f;
+  border: 2px solid #3d2b1f;
+}
+
+#questFill {
+  height: 100%;
+  width: 0%;
+  background: #ffb703;
+  transition: width 0.3s;
+}
+
+.quest-count { font-size: 8px; color: #8c6239; white-space: nowrap; }
+
+.hud-box.bump { animation: bump 0.22s; }
+
+@keyframes bump {
+  50% { transform: scale(1.18); }
+}
+
+.popup-card { text-align: center; max-width: 380px; }
+
+.popup-card .modal-title { display: block; margin-bottom: 14px; font-size: 13px; }
+
+.popup-body {
+  font-size: 9px;
+  line-height: 1.8;
+  color: #4a3525;
+  margin-bottom: 16px;
+}
+
+.popup-big {
+  font-size: 18px;
+  color: #d48b00;
+  margin: 14px 0;
+  line-height: 1.6;
+}
+
+.popup-btn {
+  background: #2ed573;
+  color: #ffffff;
+  width: 100%;
+  font-size: 12px;
+  padding: 14px;
+}
+
+@media (max-width: 600px) {
+  .quest-box { padding: 6px 8px; border-width: 3px; }
+  .quest-top { font-size: 8px; margin-bottom: 4px; }
+  .quest-count { font-size: 7px; }
+}
