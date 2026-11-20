@@ -61,7 +61,7 @@ export const CROPS = {
     icon: '🍉',
     seedCost: 800,
     sellPrice: 1900,
-    growTime: 60,
+    growTime: 40,
     color: '#2ED573',
     stages: 3,
     levelReq: 6,
@@ -70,25 +70,61 @@ export const CROPS = {
     id: 'pumpkin',
     name: 'Тыква',
     icon: '🎃',
-    seedCost: 2500,
-    sellPrice: 6500,
-    growTime: 90,
+    seedCost: 2000,
+    sellPrice: 3700,
+    growTime: 40,
     color: '#E67E22',
     stages: 3,
     levelReq: 7,
-    premiumOnly: true, // только на золотых грядках
+    tier: 1, // нужна улучшенная или золотая грядка
   },
   grapes: {
     id: 'grapes',
     name: 'Виноград',
     icon: '🍇',
-    seedCost: 8000,
-    sellPrice: 22000,
-    growTime: 150,
+    seedCost: 3500,
+    sellPrice: 6200,
+    growTime: 40,
     color: '#8E44AD',
     stages: 3,
     levelReq: 8,
-    premiumOnly: true,
+    tier: 1,
+  },
+  apple: {
+    id: 'apple',
+    name: 'Золотое яблоко',
+    icon: '🍎',
+    seedCost: 6000,
+    sellPrice: 10300,
+    growTime: 40,
+    color: '#F1C40F',
+    stages: 3,
+    levelReq: 9,
+    tier: 2, // только на золотых грядках
+  },
+  peach: {
+    id: 'peach',
+    name: 'Персик бессмертия',
+    icon: '🍑',
+    seedCost: 10000,
+    sellPrice: 16900,
+    growTime: 40,
+    color: '#FF9F9F',
+    stages: 3,
+    levelReq: 10,
+    tier: 2,
+  },
+  dragon: {
+    id: 'dragon',
+    name: 'Драконий плод',
+    icon: '🐲',
+    seedCost: 18000,
+    sellPrice: 29000,
+    growTime: 40,
+    color: '#E74C3C',
+    stages: 3,
+    levelReq: 11,
+    tier: 2,
   }
 };
 
@@ -100,15 +136,19 @@ export const START_PLOTS = [
   { x: 3, y: 3 },
 ];
 
-// Цена каждой следующей грядки (по порядку покупки):
-// до 12-й +300 к предыдущей, дальше умножение примерно на 1.4
+// Цены обычных грядок (по порядку покупки): до 12-й +300, дальше примерно ×1.4.
+// Вместе с 4 стартовыми это 20 обычных грядок.
 export const PLOT_COSTS = [
   200, 500, 800, 1100, 1400, 1700, 2000, 2300, 2600, 2900, 3200, 3500,
-  4900, 6900, 9600, 13500, 19000, 26000, 37000, 52000, 72000,
+  4900, 6900, 9600, 13500,
 ];
 
-// Грядки от этой цены считаются золотыми
-export const PREMIUM_COST = 10000;
+// Цены золотых грядок (всего 5)
+export const GOLDEN_COSTS = [150000, 400000, 900000, 1800000, 3500000];
+
+// Улучшение обычной грядки (даёт сажать тыкву и виноград): цена растёт с каждой улучшенной
+export const PLOT_UPGRADE_BASE = 30000;
+export const PLOT_UPGRADE_MULT = 1.25; // каждое следующее улучшение дороже в 1.25 раза
 
 // Бонус к скорости роста от каждой золотой грядки рядом (0.15 = +15%)
 export const NEIGHBOR_BONUS = 0.15;
@@ -120,7 +160,7 @@ export const UPGRADES = {
     description: 'Культуры растут быстрее',
     icon: '⚡',
     baseCost: 40,
-    costMultiplier: 2.2,
+    costMultiplier: 3.0,
     maxLevel: 10,
     effectPerLevel: 0.15, // +15% к скорости роста за уровень
   },
@@ -130,7 +170,7 @@ export const UPGRADES = {
     description: 'Урожай продаётся дороже',
     icon: '💎',
     baseCost: 60,
-    costMultiplier: 2.3,
+    costMultiplier: 3.2,
     maxLevel: 10,
     effectPerLevel: 0.20, // +20% к цене продажи за уровень
   },
@@ -140,7 +180,7 @@ export const UPGRADES = {
     description: 'Сам собирает созревший урожай',
     icon: '🧺',
     baseCost: 150,
-    costMultiplier: 2.8,
+    costMultiplier: 3.5,
     maxLevel: 5,
     delays: [0, 8, 6, 4, 2, 1], // через сколько секунд после созревания собирает (индекс = уровень)
   }

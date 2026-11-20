@@ -412,3 +412,15 @@ html, body {
   .seed-icon { font-size: 18px; }
   .seed-info { font-size: 6px; }
 }
+
+.shop-title { font-size: 10px; color: #8c6239; margin: 14px 0 8px; }
+.shop-title:first-child { margin-top: 0; }
+
+.seed-bar { width: auto; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding-top: 8px; }
+.seed-bar::-webkit-scrollbar { display: none; }
+.seed-btn { flex: 0 0 56px; }
+.seed-btn.special { border-color: #6fa8dc; }
+
+@media (max-width: 600px) {
+  .seed-btn { flex: 0 0 46px; }
+}
