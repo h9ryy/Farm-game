@@ -388,3 +388,19 @@ html, body {
   .quest-top { font-size: 8px; margin-bottom: 4px; }
   .quest-count { font-size: 7px; }
 }
+
+/* ---------- ЭТАП 5: РАЗМЕЩЕНИЕ ГРЯДОК ---------- */
+.place-banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cancel-btn {
+  background: #ff6b6b;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 9px;
+  white-space: nowrap;
+}

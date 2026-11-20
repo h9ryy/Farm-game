@@ -68,24 +68,16 @@ export const CROPS = {
   }
 };
 
-export const INITIAL_PLOTS = [
-  { id: 0, x: 0, y: 0, unlocked: true },
-  { id: 1, x: 1, y: 0, unlocked: true },
-  { id: 2, x: 2, y: 0, unlocked: true },
-  { id: 3, x: 0, y: 1, unlocked: true },
-  { id: 4, x: 1, y: 1, unlocked: false, cost: 50 },
-  { id: 5, x: 2, y: 1, unlocked: false, cost: 100 },
-  { id: 6, x: 0, y: 2, unlocked: false, cost: 250 },
-  { id: 7, x: 1, y: 2, unlocked: false, cost: 500 },
-  { id: 8, x: 2, y: 2, unlocked: false, cost: 1000 },
-  { id: 9, x: 3, y: 0, unlocked: false, cost: 2000 },
-  { id: 10, x: 3, y: 1, unlocked: false, cost: 3500 },
-  { id: 11, x: 3, y: 2, unlocked: false, cost: 5000 },
-  { id: 12, x: 0, y: 3, unlocked: false, cost: 8000 },
-  { id: 13, x: 1, y: 3, unlocked: false, cost: 12000 },
-  { id: 14, x: 2, y: 3, unlocked: false, cost: 18000 },
-  { id: 15, x: 3, y: 3, unlocked: false, cost: 25000 },
+// Стартовые грядки (центр поля 4x4)
+export const START_PLOTS = [
+  { x: 1, y: 1 },
+  { x: 2, y: 1 },
+  { x: 1, y: 2 },
+  { x: 2, y: 2 },
 ];
+
+// Цена каждой следующей грядки (по порядку покупки)
+export const PLOT_COSTS = [50, 100, 250, 500, 1000, 2000, 3500, 5000, 8000, 12000, 18000, 25000];
 
 export const UPGRADES = {
   speed: {
