@@ -402,5 +402,13 @@ html, body {
   color: #ffffff;
   padding: 8px 12px;
   font-size: 9px;
-  white-space: nowrap;
+  white-space: nowrap; 
+}
+
+
+.seed-btn.premium { border-color: #d4a017; }
+
+@media (max-width: 600px) {
+  .seed-icon { font-size: 18px; }
+  .seed-info { font-size: 6px; }
 }

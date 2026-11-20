@@ -65,19 +65,53 @@ export const CROPS = {
     color: '#2ED573',
     stages: 3,
     levelReq: 6,
+  },
+  pumpkin: {
+    id: 'pumpkin',
+    name: 'Тыква',
+    icon: '🎃',
+    seedCost: 2500,
+    sellPrice: 6500,
+    growTime: 90,
+    color: '#E67E22',
+    stages: 3,
+    levelReq: 7,
+    premiumOnly: true, // только на золотых грядках
+  },
+  grapes: {
+    id: 'grapes',
+    name: 'Виноград',
+    icon: '🍇',
+    seedCost: 8000,
+    sellPrice: 22000,
+    growTime: 150,
+    color: '#8E44AD',
+    stages: 3,
+    levelReq: 8,
+    premiumOnly: true,
   }
 };
 
-// Стартовые грядки (центр поля 4x4)
+// Стартовые грядки (поле 5x5, центр)
 export const START_PLOTS = [
-  { x: 1, y: 1 },
-  { x: 2, y: 1 },
-  { x: 1, y: 2 },
   { x: 2, y: 2 },
+  { x: 3, y: 2 },
+  { x: 2, y: 3 },
+  { x: 3, y: 3 },
 ];
 
-// Цена каждой следующей грядки (по порядку покупки)
-export const PLOT_COSTS = [50, 100, 250, 500, 1000, 2000, 3500, 5000, 8000, 12000, 18000, 25000];
+// Цена каждой следующей грядки (по порядку покупки):
+// до 12-й +300 к предыдущей, дальше умножение примерно на 1.4
+export const PLOT_COSTS = [
+  200, 500, 800, 1100, 1400, 1700, 2000, 2300, 2600, 2900, 3200, 3500,
+  4900, 6900, 9600, 13500, 19000, 26000, 37000, 52000, 72000,
+];
+
+// Грядки от этой цены считаются золотыми
+export const PREMIUM_COST = 10000;
+
+// Бонус к скорости роста от каждой золотой грядки рядом (0.15 = +15%)
+export const NEIGHBOR_BONUS = 0.15;
 
 export const UPGRADES = {
   speed: {
