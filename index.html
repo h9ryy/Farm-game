@@ -26,6 +26,7 @@
         <span class="hud-label">УР.<span id="levelVal">1</span></span>
         <div class="xp-bar"><div id="xpFill"></div></div>
       </div>
+      <button id="shopBtn" class="pixel-btn shop-btn">🛒</button>
       <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ</button>
     </header>
 
@@ -41,6 +42,17 @@
       </div>
       <div id="seedBar" class="seed-bar"></div>
     </footer>
+  </div>
+
+  <!-- Магазин улучшений -->
+  <div id="shopModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <span class="modal-title">УЛУЧШЕНИЯ</span>
+        <button id="shopClose" class="pixel-btn close-btn">✕</button>
+      </div>
+      <div id="upgradeList"></div>
+    </div>
   </div>
 
   <script src="/sdk.js"></script>

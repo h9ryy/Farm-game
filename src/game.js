@@ -1,6 +1,6 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
-import { CROPS, INITIAL_PLOTS } from './data.js';
+import { CROPS, INITIAL_PLOTS, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 const LEVEL_XP = [0, 0, 50, 150, 400, 1000, 2500];
@@ -19,8 +19,11 @@ class PixelFarm {
     this.xp = 0;
     this.inventory = {};
     Object.keys(CROPS).forEach((id) => (this.inventory[id] = 0));
+    this.upgrades = {};
+    Object.keys(UPGRADES).forEach((id) => (this.upgrades[id] = 0));
     this.selectedCrop = 'wheat';
     this.tutorialDone = false;
+    this._shopKey = '';
 
     this.plots = INITIAL_PLOTS.map((p) => ({
       id: p.id,
@@ -31,6 +34,7 @@ class PixelFarm {
       crop: null,
       state: 'empty', // 'empty' | 'growing' | 'ripe'
       plantedAt: 0,
+      ripeAt: 0,
     }));
 
     this.floatingTexts = [];
@@ -47,6 +51,43 @@ class PixelFarm {
       if (this.xp >= LEVEL_XP[i]) lvl = i;
     }
     return lvl;
+  }
+
+  // ---------- ЭФФЕКТЫ УЛУЧШЕНИЙ ----------
+  growTimeOf(crop) {
+    return crop.growTime / (1 + UPGRADES.speed.effectPerLevel * this.upgrades.speed);
+  }
+
+  priceOf(crop) {
+    return Math.round(crop.sellPrice * (1 + UPGRADES.value.effectPerLevel * this.upgrades.value));
+  }
+
+  sellTotal() {
+    let total = 0;
+    Object.values(CROPS).forEach((c) => {
+      total += this.inventory[c.id] * this.priceOf(c);
+    });
+    return total;
+  }
+
+  autoDelay() {
+    const lvl = this.upgrades.autoHarvest;
+    return lvl > 0 ? UPGRADES.autoHarvest.delays[lvl] : null;
+  }
+
+  upgradeCost(id) {
+    const u = UPGRADES[id];
+    return Math.round(u.baseCost * Math.pow(u.costMultiplier, this.upgrades[id]));
+  }
+
+  effectText(id) {
+    const lvl = this.upgrades[id];
+    if (id === 'autoHarvest') {
+      return lvl > 0 ? `Сбор через ${UPGRADES.autoHarvest.delays[lvl]} с` : 'Не куплено';
+    }
+    const pct = Math.round(UPGRADES[id].effectPerLevel * lvl * 100);
+    if (id === 'speed') return lvl > 0 ? `Рост быстрее на ${pct}%` : 'Не куплено';
+    return lvl > 0 ? `Цена выше на ${pct}%` : 'Не куплено';
   }
 
   async init() {
@@ -163,60 +204,66 @@ class PixelFarm {
       plot.crop = crop.id;
       plot.state = 'growing';
       plot.plantedAt = Date.now();
+      plot.ripeAt = 0;
       sound.playPlant();
       this.addFloatingText(cx, cy, `-💰${crop.seedCost}`, '#ffde59');
       this.spawnDirtParticles(cx, cy);
-      if (!this.tutorialDone) {
-        this.tutorialDone = true;
-        this.updateUI();
-        this.resize();
-      }
+      const firstTime = !this.tutorialDone;
+      this.tutorialDone = true;
       this.updateUI();
+      if (firstTime) this.resize();
       return;
     }
 
     // 3. Созрело: сбор
     if (plot.state === 'ripe') {
-      const crop = CROPS[plot.crop];
-      const levelBefore = this.level;
-      plot.state = 'empty';
-      plot.crop = null;
-      plot.plantedAt = 0;
-      this.inventory[crop.id] += 1;
-      this.xp += crop.sellPrice;
-
-      sound.playHarvest();
-      this.addFloatingText(cx, cy, `+1 ${crop.icon}`, '#7bed9f');
-      this.spawnHarvestParticles(cx, cy);
-
-      if (this.level > levelBefore) {
-        sound.playUnlock();
-        this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, `УРОВЕНЬ ${this.level}!`, '#ffde59', 20);
-        const opened = Object.values(CROPS).filter((c) => c.levelReq === this.level);
-        opened.forEach((c, i) => {
-          this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2 + 30 + i * 22, `ОТКРЫТО: ${c.icon} ${c.name}`, '#ffffff', 12);
-        });
-        this.saveGame();
-      }
-      this.updateUI();
+      this.harvestPlot(plot, cx, cy, false);
       return;
     }
 
     // 4. Растёт
     if (plot.state === 'growing') {
       const crop = CROPS[plot.crop];
-      const left = Math.ceil(Math.max(0, crop.growTime - (Date.now() - plot.plantedAt) / 1000));
+      const left = Math.ceil(Math.max(0, this.growTimeOf(crop) - (Date.now() - plot.plantedAt) / 1000));
       sound.playClick();
       this.addFloatingText(cx, cy, `ЕЩЁ ${left} с`, '#ffffff');
     }
   }
 
+  harvestPlot(plot, cx, cy, auto) {
+    const crop = CROPS[plot.crop];
+    const levelBefore = this.level;
+    plot.state = 'empty';
+    plot.crop = null;
+    plot.plantedAt = 0;
+    plot.ripeAt = 0;
+    this.inventory[crop.id] += 1;
+    this.xp += crop.sellPrice;
+
+    if (auto) {
+      sound.playTone(700, 'sine', 0.05, 0.05);
+      this.addFloatingText(cx, cy, `+1 ${crop.icon}`, '#c8f7dc', 10);
+    } else {
+      sound.playHarvest();
+      this.addFloatingText(cx, cy, `+1 ${crop.icon}`, '#7bed9f');
+      this.spawnHarvestParticles(cx, cy);
+    }
+
+    if (this.level > levelBefore) {
+      sound.playUnlock();
+      this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, `УРОВЕНЬ ${this.level}!`, '#ffde59', 20);
+      const opened = Object.values(CROPS).filter((c) => c.levelReq === this.level);
+      opened.forEach((c, i) => {
+        this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2 + 30 + i * 22, `ОТКРЫТО: ${c.icon} ${c.name}`, '#ffffff', 12);
+      });
+      this.saveGame();
+    }
+    this.updateUI();
+  }
+
   sellAll() {
     sound.ensureContext();
-    let total = 0;
-    Object.values(CROPS).forEach((c) => {
-      total += this.inventory[c.id] * c.sellPrice;
-    });
+    const total = this.sellTotal();
     if (total <= 0) {
       sound.playClick();
       this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, 'НЕЧЕГО ПРОДАВАТЬ!', '#ff4d4d');
@@ -244,6 +291,21 @@ class PixelFarm {
     this.updateUI();
   }
 
+  buyUpgrade(id) {
+    const u = UPGRADES[id];
+    if (this.upgrades[id] >= u.maxLevel) return;
+    const cost = this.upgradeCost(id);
+    if (this.coins < cost) {
+      sound.playClick();
+      return;
+    }
+    this.coins -= cost;
+    this.upgrades[id] += 1;
+    sound.playUnlock();
+    this.updateUI();
+    this.saveGame();
+  }
+
   // ---------- ИНТЕРФЕЙС (HTML) ----------
   buildSeedBar() {
     const bar = document.getElementById('seedBar');
@@ -260,17 +322,67 @@ class PixelFarm {
 
   setupUI() {
     document.getElementById('sellBtn').addEventListener('click', () => this.sellAll());
+
+    const modal = document.getElementById('shopModal');
+    const openShop = () => {
+      sound.ensureContext();
+      sound.playClick();
+      this._shopKey = '';
+      modal.classList.remove('hidden');
+      this.renderShop();
+    };
+    const closeShop = () => modal.classList.add('hidden');
+
+    document.getElementById('shopBtn').addEventListener('click', openShop);
+    document.getElementById('shopClose').addEventListener('click', closeShop);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeShop();
+    });
+    document.getElementById('upgradeList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-up]');
+      if (btn && !btn.disabled) this.buyUpgrade(btn.dataset.up);
+    });
+
     this.updateUI();
+  }
+
+  renderShop() {
+    const modal = document.getElementById('shopModal');
+    if (modal.classList.contains('hidden')) return;
+
+    // Перерисовываем только если что-то изменилось, чтобы не сбивать нажатия
+    const key = JSON.stringify([this.coins, this.upgrades]);
+    if (key === this._shopKey) return;
+    this._shopKey = key;
+
+    document.getElementById('upgradeList').innerHTML = Object.values(UPGRADES)
+      .map((u) => {
+        const lvl = this.upgrades[u.id];
+        const max = lvl >= u.maxLevel;
+        const cost = this.upgradeCost(u.id);
+        const can = !max && this.coins >= cost;
+        return `
+          <div class="up-card">
+            <div class="up-icon">${u.icon}</div>
+            <div class="up-body">
+              <div class="up-name">${u.name}</div>
+              <div class="up-desc">${u.description}</div>
+              <div class="up-lvl">Уровень ${lvl} из ${u.maxLevel}</div>
+              <div class="up-effect">${this.effectText(u.id)}</div>
+            </div>
+            <button class="pixel-btn up-buy ${can ? 'can' : ''}" data-up="${u.id}" ${max ? 'disabled' : ''}>
+              ${max ? 'МАКС' : '💰' + cost}
+            </button>
+          </div>`;
+      })
+      .join('');
   }
 
   updateUI() {
     const lvl = this.level;
     let totalCrops = 0;
-    let sellValue = 0;
-    Object.values(CROPS).forEach((c) => {
-      totalCrops += this.inventory[c.id];
-      sellValue += this.inventory[c.id] * c.sellPrice;
-    });
+    Object.values(CROPS).forEach((c) => (totalCrops += this.inventory[c.id]));
+    const sellValue = this.sellTotal();
 
     document.getElementById('coinsVal').textContent = this.coins;
     document.getElementById('cropCountVal').textContent = totalCrops;
@@ -296,8 +408,14 @@ class PixelFarm {
       btn.querySelector('.seed-info').textContent = locked ? `УР.${c.levelReq}` : `💰${c.seedCost}`;
     });
 
-    // Подсказка только в начале
+    // Кнопка магазина мигает, когда есть что купить
+    const canBuy = Object.values(UPGRADES).some(
+      (u) => this.upgrades[u.id] < u.maxLevel && this.coins >= this.upgradeCost(u.id)
+    );
+    document.getElementById('shopBtn').classList.toggle('alert', canBuy);
+
     document.getElementById('hint').style.display = this.tutorialDone ? 'none' : '';
+    this.renderShop();
   }
 
   // ---------- СОХРАНЕНИЕ ----------
@@ -307,6 +425,7 @@ class PixelFarm {
       coins: this.coins,
       xp: this.xp,
       inventory: this.inventory,
+      upgrades: this.upgrades,
       selectedCrop: this.selectedCrop,
       tutorialDone: this.tutorialDone,
       plots: this.plots.map((p) => ({
@@ -332,6 +451,13 @@ class PixelFarm {
           if (typeof saved.inventory[id] === 'number') this.inventory[id] = saved.inventory[id];
         });
       }
+      if (saved.upgrades) {
+        Object.keys(UPGRADES).forEach((id) => {
+          if (typeof saved.upgrades[id] === 'number') {
+            this.upgrades[id] = Math.max(0, Math.min(UPGRADES[id].maxLevel, saved.upgrades[id]));
+          }
+        });
+      }
       this.tutorialDone = !!saved.tutorialDone;
       if (Array.isArray(saved.plots)) {
         saved.plots.forEach((sp) => {
@@ -348,7 +474,6 @@ class PixelFarm {
       const sel = CROPS[saved.selectedCrop];
       if (sel && this.level >= sel.levelReq) this.selectedCrop = sel.id;
     } else if (typeof saved.wheatInventory === 'number') {
-      // Старое сохранение (до этапа 2): переносим только монеты и пшеницу
       this.inventory.wheat = saved.wheatInventory;
       this.tutorialDone = true;
     }
@@ -404,13 +529,23 @@ class PixelFarm {
 
   update(dt) {
     const now = Date.now();
+    const delay = this.autoDelay();
 
     this.plots.forEach((plot) => {
       if (plot.state === 'growing') {
         const crop = CROPS[plot.crop];
-        if ((now - plot.plantedAt) / 1000 >= crop.growTime) {
+        if ((now - plot.plantedAt) / 1000 >= this.growTimeOf(crop)) {
           plot.state = 'ripe';
+          plot.ripeAt = now;
           sound.playTone(520, 'sine', 0.08, 0.08);
+        }
+      } else if (plot.state === 'ripe' && delay !== null) {
+        // Автосбор
+        if (!plot.ripeAt) {
+          plot.ripeAt = now;
+        } else if (now - plot.ripeAt >= delay * 1000) {
+          const { px, py } = this.plotPos(plot);
+          this.harvestPlot(plot, px + this.tile / 2, py + this.tile / 2, true);
         }
       }
     });
@@ -516,7 +651,6 @@ class PixelFarm {
     const cy = S / 2;
     const now = Date.now();
 
-    // Рамка и земля
     ctx.fillStyle = '#5c381e';
     ctx.fillRect(0, 0, S, S);
     ctx.fillStyle = '#8d5b36';
@@ -582,7 +716,7 @@ class PixelFarm {
 
     // --- Растёт ---
     if (plot.state === 'growing') {
-      const progress = Math.min(1, (now - plot.plantedAt) / 1000 / crop.growTime);
+      const progress = Math.min(1, (now - plot.plantedAt) / 1000 / this.growTimeOf(crop));
       if (progress < 0.5) this.drawPixelSprout(cx, cy - 4);
       else this.drawPixelMidWheat(cx, cy - 4);
 
@@ -605,7 +739,6 @@ class PixelFarm {
         ctx.fillText(crop.icon, cx, cy + 12 + bob);
       }
 
-      // Пузырь "забери" с иконкой культуры
       ctx.fillStyle = '#000000';
       ctx.fillRect(cx - 22, 4, 44, 26);
       ctx.fillStyle = '#2ed573';

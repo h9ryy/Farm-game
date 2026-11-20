@@ -90,32 +90,32 @@ export const INITIAL_PLOTS = [
 export const UPGRADES = {
   speed: {
     id: 'speed',
-    name: 'Удобрения (Скорость)',
-    description: '+15% к скорости роста культур',
+    name: 'Удобрения',
+    description: 'Культуры растут быстрее',
     icon: '⚡',
     baseCost: 40,
     costMultiplier: 2.2,
     maxLevel: 10,
-    effectPerLevel: 0.15,
+    effectPerLevel: 0.15, // +15% к скорости роста за уровень
   },
   value: {
     id: 'value',
-    name: 'Селекция (Доход)',
-    description: '+20% к стоимости продажи урожая',
+    name: 'Селекция',
+    description: 'Урожай продаётся дороже',
     icon: '💎',
     baseCost: 60,
     costMultiplier: 2.3,
     maxLevel: 10,
-    effectPerLevel: 0.20,
+    effectPerLevel: 0.20, // +20% к цене продажи за уровень
   },
-  autoWater: {
-    id: 'autoWater',
-    name: 'Автополив',
-    description: 'Автоматически поливает грядки',
-    icon: '💧',
+  autoHarvest: {
+    id: 'autoHarvest',
+    name: 'Автосбор',
+    description: 'Сам собирает созревший урожай',
+    icon: '🧺',
     baseCost: 150,
     costMultiplier: 2.8,
     maxLevel: 5,
-    effectPerLevel: 0.1,
+    delays: [0, 8, 6, 4, 2, 1], // через сколько секунд после созревания собирает (индекс = уровень)
   }
 };

@@ -212,3 +212,99 @@ html, body {
   .seed-icon { font-size: 20px; }
   .seed-info { font-size: 7px; }
 }
+
+/* ---------- ЭТАП 3: МАГАЗИН УЛУЧШЕНИЙ ---------- */
+.shop-btn {
+  background: #fff8e7;
+  color: #4a2800;
+  box-shadow: inset -4px -4px 0px #e6d3af, inset 4px 4px 0px #ffffff, 0 4px 8px rgba(0, 0, 0, 0.15);
+  font-size: 14px;
+}
+
+.shop-btn.alert {
+  background: #ffe08a;
+  animation: shopPulse 0.9s infinite alternate;
+}
+
+@keyframes shopPulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.12); }
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 12px;
+}
+
+.modal.hidden { display: none; }
+
+.modal-card {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90%;
+  overflow-y: auto;
+  background: #fff8e7;
+  border: 4px solid #7d5233;
+  box-shadow: inset -4px -4px 0px #e6d3af, inset 4px 4px 0px #ffffff, 0 8px 20px rgba(0, 0, 0, 0.3);
+  padding: 14px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-title { font-size: 13px; color: #8c6239; }
+
+.close-btn {
+  background: #ff6b6b;
+  color: #ffffff;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.up-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 3px solid #c9a97a;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.up-icon { font-size: 30px; line-height: 1; }
+.up-body { flex: 1; min-width: 0; }
+.up-name { font-size: 10px; color: #4a3525; margin-bottom: 6px; }
+.up-desc { font-size: 8px; color: #8c6239; line-height: 1.5; margin-bottom: 6px; }
+.up-lvl { font-size: 8px; color: #4a3525; margin-bottom: 4px; }
+.up-effect { font-size: 8px; color: #27ae60; }
+
+.up-buy {
+  background: #d9d2c3;
+  color: #6b5a44;
+  padding: 10px 8px;
+  font-size: 9px;
+  min-width: 78px;
+}
+
+.up-buy.can {
+  background: #2ed573;
+  color: #ffffff;
+}
+
+.up-buy:disabled { cursor: default; opacity: 0.8; }
+
+@media (max-width: 600px) {
+  .shop-btn { padding: 8px 10px; font-size: 12px; }
+  .up-name { font-size: 9px; }
+  .up-buy { min-width: 64px; font-size: 8px; padding: 8px 4px; }
+}
