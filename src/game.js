@@ -1,11 +1,11 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
-import { CROPS, START_PLOTS, PLOT_COSTS, UPGRADES } from './data.js';
+import { CROPS, START_PLOTS, PLOT_COSTS, PREMIUM_COST, NEIGHBOR_BONUS, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
-const LEVEL_XP = [0, 0, 50, 150, 400, 1000, 2500];
+const LEVEL_XP = [0, 0, 50, 150, 400, 1000, 2500, 8000, 25000];
 const MAX_LEVEL = LEVEL_XP.length - 1;
-const GRID = 4;       // поле 4x4
+const GRID = 5;       // поле 5x5
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
 const SAVE_VERSION = 3;
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
@@ -57,6 +57,8 @@ class PixelFarm {
       state: 'empty', // 'empty' | 'growing' | 'ripe'
       plantedAt: 0,
       ripeAt: 0,
+      premium: false,
+      lastCrop: null,
     }));
     this.placing = false; // режим выбора места для новой грядки
 
@@ -77,8 +79,22 @@ class PixelFarm {
   }
 
   // ---------- ЭФФЕКТЫ УЛУЧШЕНИЙ ----------
-  growTimeOf(crop) {
-    return crop.growTime / (1 + UPGRADES.speed.effectPerLevel * this.upgrades.speed);
+  growTimeOf(crop, plot) {
+    const bonus = plot ? this.neighborBonus(plot) : 0;
+    return crop.growTime / (1 + UPGRADES.speed.effectPerLevel * this.upgrades.speed + bonus);
+  }
+
+  // Каждая золотая грядка рядом ускоряет рост на этой грядке
+  neighborBonus(plot) {
+    let n = 0;
+    this.plots.forEach((o) => {
+      if (o.premium && Math.abs(o.x - plot.x) + Math.abs(o.y - plot.y) === 1) n += 1;
+    });
+    return n * NEIGHBOR_BONUS;
+  }
+
+  fmt(n) {
+    return n >= 1000 ? `${(n / 1000).toFixed(n % 1000 ? 1 : 0)}K` : `${n}`;
   }
 
   priceOf(crop) {
@@ -140,7 +156,7 @@ class PixelFarm {
     const cost = this.nextPlotCost();
     if (cost === null || this.coins < cost) return;
     this.coins -= cost;
-    this.plots.push({ x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0 });
+    this.plots.push({ x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: cost >= PREMIUM_COST, lastCrop: null });
     this.stats.plots += 1;
     this.placing = false;
     const { px, py } = this.plotPos({ x, y });
@@ -269,40 +285,56 @@ class PixelFarm {
     // 2. Пустая грядка: посадка
     if (plot.state === 'empty') {
       const crop = CROPS[this.selectedCrop];
+      if (crop.premiumOnly && !plot.premium) {
+        sound.playClick();
+        this.addFloatingText(cx, cy, '⭐ ТОЛЬКО ЗОЛОТЫЕ', '#ffde59', 10);
+        return;
+      }
       if (this.coins < crop.seedCost) {
         sound.playClick();
         this.addFloatingText(cx, cy, 'НЕТ МОНЕТ!', '#ff4d4d');
         return;
       }
-      this.coins -= crop.seedCost;
-      plot.crop = crop.id;
-      plot.state = 'growing';
-      plot.plantedAt = Date.now();
-      plot.ripeAt = 0;
-      this.stats.planted += 1;
-      sound.playPlant();
-      this.addFloatingText(cx, cy, `-💰${crop.seedCost}`, '#ffde59');
-      this.spawnDirtParticles(cx, cy);
-      const firstTime = !this.tutorialDone;
-      this.tutorialDone = true;
-      this.updateUI();
-      if (firstTime) this.resize();
+      this.plantCrop(plot, crop, cx, cy, false);
+      if (!this.tutorialDone) {
+        this.tutorialDone = true;
+        this.updateUI();
+        this.resize();
+      }
       return;
     }
 
     // 3. Созрело: сбор
     if (plot.state === 'ripe') {
       this.harvestPlot(plot, cx, cy, false);
+      // Золотая грядка потом сама посадит выбранную сейчас культуру
+      if (plot.premium && this.level >= CROPS[this.selectedCrop].levelReq) plot.lastCrop = this.selectedCrop;
       return;
     }
 
     // 4. Растёт
     if (plot.state === 'growing') {
       const crop = CROPS[plot.crop];
-      const left = Math.ceil(Math.max(0, this.growTimeOf(crop) - (Date.now() - plot.plantedAt) / 1000));
+      const left = Math.ceil(Math.max(0, this.growTimeOf(crop, plot) - (Date.now() - plot.plantedAt) / 1000));
       sound.playClick();
       this.addFloatingText(cx, cy, `ЕЩЁ ${left} с`, '#ffffff');
     }
+  }
+
+  plantCrop(plot, crop, cx, cy, auto) {
+    this.coins -= crop.seedCost;
+    plot.crop = crop.id;
+    plot.lastCrop = crop.id;
+    plot.state = 'growing';
+    plot.plantedAt = Date.now();
+    plot.ripeAt = 0;
+    this.stats.planted += 1;
+    if (!auto) {
+      sound.playPlant();
+      this.addFloatingText(cx, cy, `-💰${crop.seedCost}`, '#ffde59');
+      this.spawnDirtParticles(cx, cy);
+    }
+    this.updateUI();
   }
 
   harvestPlot(plot, cx, cy, auto) {
@@ -481,7 +513,7 @@ class PixelFarm {
             <div class="up-icon">🟫</div>
             <div class="up-body">
               <div class="up-name">Новая грядка</div>
-              <div class="up-desc">Ставишь сам, рядом с уже имеющимися</div>
+              <div class="up-desc">${plotCost !== null && plotCost >= PREMIUM_COST ? '⭐ ЗОЛОТАЯ: редкие культуры, сама сажает и собирает, ускоряет соседей' : 'Ставишь сам, рядом с уже имеющимися'}</div>
               <div class="up-lvl">Грядок: ${this.plots.length} из ${GRID * GRID}</div>
             </div>
             <button class="pixel-btn up-buy ${canPlot ? 'can' : ''}" data-up="plot" ${maxPlots ? 'disabled' : ''}>
@@ -524,9 +556,10 @@ class PixelFarm {
       const c = CROPS[btn.dataset.crop];
       const locked = lvl < c.levelReq;
       btn.classList.toggle('locked', locked);
+      btn.classList.toggle('premium', !!c.premiumOnly);
       btn.classList.toggle('selected', !locked && this.selectedCrop === c.id);
       btn.classList.toggle('poor', !locked && this.coins < c.seedCost);
-      btn.querySelector('.seed-info').textContent = locked ? `УР.${c.levelReq}` : `💰${c.seedCost}`;
+      btn.querySelector('.seed-info').textContent = locked ? `УР.${c.levelReq}` : `💰${this.fmt(c.seedCost)}`;
     });
 
     // Кнопка магазина мигает, когда есть что купить
@@ -539,7 +572,7 @@ class PixelFarm {
 
     document.getElementById('hint').style.display = this.tutorialDone ? 'none' : '';
     document.getElementById('placeBanner').style.display = this.placing ? '' : 'none';
-    if (this.placing) document.getElementById('placeText').textContent = `Выбери место для грядки (💰${this.nextPlotCost()})`;
+    if (this.placing) document.getElementById('placeText').textContent = `Выбери место для грядки (${this.nextPlotCost() >= PREMIUM_COST ? '⭐ ' : ''}💰${this.nextPlotCost()})`;
     this.renderShop();
   }
 
@@ -564,6 +597,8 @@ class PixelFarm {
         crop: p.crop,
         state: p.state,
         plantedAt: p.plantedAt,
+        premium: p.premium,
+        lastCrop: p.lastCrop,
       })),
     });
   }
@@ -614,7 +649,7 @@ class PixelFarm {
           }
           if (!(x >= 0 && x < GRID && y >= 0 && y < GRID)) return;
           if (loaded.some((l) => l.x === x && l.y === y)) return;
-          const p = { x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0 };
+          const p = { x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: !!sp.premium, lastCrop: CROPS[sp.lastCrop] ? sp.lastCrop : null };
           if (sp.state !== 'empty' && CROPS[sp.crop]) {
             p.state = sp.state;
             p.crop = sp.crop;
@@ -820,18 +855,24 @@ class PixelFarm {
     this.plots.forEach((plot) => {
       if (plot.state === 'growing') {
         const crop = CROPS[plot.crop];
-        if ((now - plot.plantedAt) / 1000 >= this.growTimeOf(crop)) {
+        if ((now - plot.plantedAt) / 1000 >= this.growTimeOf(crop, plot)) {
           plot.state = 'ripe';
           plot.ripeAt = now;
           sound.playTone(520, 'sine', 0.08, 0.08);
         }
-      } else if (plot.state === 'ripe' && delay !== null) {
+      } else if (plot.state === 'ripe' && (delay !== null || plot.premium)) {
         // Автосбор
         if (!plot.ripeAt) {
           plot.ripeAt = now;
-        } else if (now - plot.ripeAt >= delay * 1000) {
+        } else if (now - plot.ripeAt >= (plot.premium ? 1000 : delay * 1000)) {
           const { px, py } = this.plotPos(plot);
           this.harvestPlot(plot, px + this.tile / 2, py + this.tile / 2, true);
+        }
+      } else if (plot.state === 'empty' && plot.premium && plot.lastCrop) {
+        // Автопосадка на золотой грядке (семена платные)
+        const crop = CROPS[plot.lastCrop];
+        if (this.level >= crop.levelReq && this.coins >= crop.seedCost) {
+          this.plantCrop(plot, crop, 0, 0, true);
         }
       }
     });
@@ -986,6 +1027,20 @@ class PixelFarm {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
+    // Золотая грядка: рамка и звезда. Бонус от соседа: зелёная стрелка.
+    if (plot.premium) {
+      ctx.strokeStyle = '#ffd23f';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, S - 4, S - 4);
+      ctx.font = `14px ${EMOJI_FONT}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('⭐', 14, 14);
+    } else if (this.neighborBonus(plot) > 0) {
+      ctx.font = "10px 'Press Start 2P', monospace";
+      ctx.fillStyle = '#7bed9f';
+      ctx.fillText('▲', S - 13, 14);
+    }
+
     if (hovered) this.hoverFrame();
 
     // --- Пустая: показываем выбранные семена ---
@@ -1004,7 +1059,7 @@ class PixelFarm {
 
     // --- Растёт ---
     if (plot.state === 'growing') {
-      const progress = Math.min(1, (now - plot.plantedAt) / 1000 / this.growTimeOf(crop));
+      const progress = Math.min(1, (now - plot.plantedAt) / 1000 / this.growTimeOf(crop, plot));
       if (progress < 0.5) this.drawPixelSprout(cx, cy - 4);
       else this.drawPixelMidWheat(cx, cy - 4);
 
