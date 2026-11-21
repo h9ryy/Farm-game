@@ -28,7 +28,7 @@ export const CROPS = {
     icon: '🍅',
     seedCost: 25,
     sellPrice: 55,
-    growTime: 12,
+    growTime: 8,
     color: '#E74C3C',
     stages: 3,
     levelReq: 3,
@@ -71,7 +71,7 @@ export const CROPS = {
     name: 'Тыква',
     icon: '🎃',
     seedCost: 2000,
-    sellPrice: 3700,
+    sellPrice: 3300,
     growTime: 40,
     color: '#E67E22',
     stages: 3,
@@ -83,7 +83,7 @@ export const CROPS = {
     name: 'Виноград',
     icon: '🍇',
     seedCost: 3500,
-    sellPrice: 6200,
+    sellPrice: 5400,
     growTime: 40,
     color: '#8E44AD',
     stages: 3,
@@ -147,7 +147,7 @@ export const PLOT_COSTS = [
 export const GOLDEN_COSTS = [350000, 1000000, 2800000, 6500000, 13000000];
 
 // Улучшение обычной грядки (даёт сажать тыкву и виноград): цена растёт с каждой улучшенной
-export const PLOT_UPGRADE_BASE = 50000;
+export const PLOT_UPGRADE_BASE = 20000;
 export const PLOT_UPGRADE_MULT = 1.3; // каждое следующее улучшение дороже в 1.25 раза
 
 // Бонус к скорости роста от каждой золотой грядки рядом (0.15 = +15%)
@@ -235,10 +235,16 @@ export const BUILDINGS = {
 
 // Настройки зданий
 export const BUILDING_SETTINGS = {
-  eggInterval: 25,   // секунд до нового яйца
+  eggInterval: 17,   // секунд до нового яйца
+  eggSeconds: 4,     // награда за яйцо = столько секунд твоего дохода (за последнюю минуту)
+  goldenEggBonus: 5000, // золотое яйцо: бонус, бывает один раз за игру
+  goldenEggWithin: 10,  // золотое яйцо попадётся среди первых N яиц
   eggMax: 3,         // сколько яиц копится
   orderInterval: 25, // секунд до нового заказа в лавке
   orderMax: 2,       // сколько заказов одновременно
+  orderPool: 3,      // заказы берутся из N лучших культур, которые ты можешь вырастить
+  orderQtyMin: 3,    // сколько штук в заказе: от
+  orderQtyMax: 5,    // ... до
   orderBonus: 2,     // награда за заказ = цена урожая × это число
   beeInterval: 20,   // секунд между пчёлами
   beeBoost: 5,       // на сколько секунд ускоряет рост при поимке

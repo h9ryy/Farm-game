@@ -4,7 +4,7 @@ import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_U
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт = число собранных урожаев. Нужно для каждого уровня (индекс = уровень)
-const LEVEL_XP = [0, 0, 10, 18, 28, 40, 55, 325, 640, 1090, 1720, 2575];
+const LEVEL_XP = [0, 0, 8, 16, 24, 33, 43, 140, 280, 480, 760, 1150];
 const MAX_LEVEL = LEVEL_XP.length - 1;
 const GRID = 6;       // поле 6x6 (грядки и здания)
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
@@ -137,9 +137,9 @@ class PixelFarm {
     return this.valueLog.reduce((a, e) => a + e.v, 0) / 60;
   }
 
-  // Яйцо стоит около 4 секунд твоего дохода, но не меньше трёх пшениц
+  // Яйцо стоит несколько секунд твоего дохода (см. eggSeconds), но не меньше трёх пшениц
   eggValue() {
-    return Math.max(3 * this.priceOf(CROPS.wheat), Math.round(this.incomePerSec() * 4));
+    return Math.max(3 * this.priceOf(CROPS.wheat), Math.round(this.incomePerSec() * BUILDING_SETTINGS.eggSeconds));
   }
 
   bestCrop() {
@@ -266,7 +266,13 @@ class PixelFarm {
     if (!def || this.hasBuilding(id) || this.coins < def.cost) return;
     this.coins -= def.cost;
     const b = { id, x, y, t: 0 };
-    if (id === 'coop') b.eggs = 0;
+    if (id === 'coop') {
+      b.eggs = 0;
+      b.made = 0; // сколько яиц уже снесено
+      b.goldenAt = 1 + Math.floor(Math.random() * BUILDING_SETTINGS.goldenEggWithin); // номер золотого яйца
+      b.goldenReady = false;
+      b.goldenDone = false;
+    }
     if (id === 'shop') b.orders = [];
     this.buildings.push(b);
     this.placing = false;
@@ -282,9 +288,13 @@ class PixelFarm {
 
   newOrder() {
     const maxTier = Math.max(...this.plots.map((p) => this.plotTier(p)));
-    const pool = Object.values(CROPS).filter((c) => c.levelReq <= this.level && (c.tier || 0) <= maxTier);
+    const S = BUILDING_SETTINGS;
+    const all = Object.values(CROPS)
+      .filter((c) => c.levelReq <= this.level && (c.tier || 0) <= maxTier)
+      .sort((a, b) => a.sellPrice - b.sellPrice);
+    const pool = all.slice(-S.orderPool); // самые дорогие из доступных
     const crop = pool[Math.floor(Math.random() * pool.length)];
-    const qty = 3 + Math.floor(Math.random() * 4);
+    const qty = S.orderQtyMin + Math.floor(Math.random() * (S.orderQtyMax - S.orderQtyMin + 1));
     return { crop: crop.id, qty, reward: Math.round(qty * this.priceOf(crop) * BUILDING_SETTINGS.orderBonus) };
   }
 
@@ -293,7 +303,16 @@ class PixelFarm {
     const def = BUILDINGS[b.id];
     if (b.id === 'coop') {
       if (b.eggs > 0) {
-        const reward = b.eggs * this.eggValue();
+        const golden = b.goldenReady;
+        const reward = b.eggs * this.eggValue() + (golden ? BUILDING_SETTINGS.goldenEggBonus : 0);
+        if (golden) {
+          b.goldenReady = false;
+          b.goldenDone = true;
+          sound.playUnlock();
+          this.addFloatingText(cx, cy - 24, 'ЗОЛОТОЕ ЯЙЦО!', '#ffd23f', 12);
+          this.spawnHarvestParticles(cx, cy);
+          this.spawnHarvestParticles(cx, cy);
+        }
         this.coins += reward;
         this.stats.earned += reward;
         b.eggs = 0;
@@ -373,6 +392,8 @@ class PixelFarm {
           if (b.t >= S.eggInterval) {
             b.t = 0;
             b.eggs += 1;
+            b.made = (b.made || 0) + 1;
+            if (!b.goldenDone && !b.goldenReady && b.made === b.goldenAt) b.goldenReady = true;
           }
         }
       } else if (b.id === 'shop') {
@@ -998,7 +1019,13 @@ class PixelFarm {
           const def = BUILDINGS[sb.id];
           if (!def || this.hasBuilding(sb.id) || !(sb.x >= 0 && sb.x < GRID && sb.y >= 0 && sb.y < GRID)) return;
           const b = { id: sb.id, x: sb.x, y: sb.y, t: 0 };
-          if (sb.id === 'coop') b.eggs = Math.min(BUILDING_SETTINGS.eggMax, sb.eggs || 0);
+          if (sb.id === 'coop') {
+            b.eggs = Math.min(BUILDING_SETTINGS.eggMax, sb.eggs || 0);
+            b.made = sb.made || 0;
+            b.goldenAt = sb.goldenAt || 1 + Math.floor(Math.random() * BUILDING_SETTINGS.goldenEggWithin);
+            b.goldenReady = !!sb.goldenReady;
+            b.goldenDone = !!sb.goldenDone;
+          }
           if (sb.id === 'shop') {
             b.orders = Array.isArray(sb.orders) ? sb.orders.filter((o) => CROPS[o.crop]).slice(0, BUILDING_SETTINGS.orderMax) : [];
           }
@@ -1541,7 +1568,7 @@ class PixelFarm {
     };
 
     if (b.id === 'coop') {
-      if (b.eggs > 0) pill(`🥚×${b.eggs}`, '#2ed573');
+      if (b.eggs > 0) pill(`${b.goldenReady ? '🌟' : '🥚'}×${b.eggs}`, b.goldenReady ? '#d4a017' : '#2ed573');
       else bar(b.t / SET.eggInterval, '#ffd23f');
     } else if (b.id === 'shop') {
       if (b.orders.length > 0) {
