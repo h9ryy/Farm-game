@@ -9,6 +9,7 @@ const MAX_LEVEL = LEVEL_XP.length - 1;
 const GRID = 6;       // поле 6x6 (грядки и здания)
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
 const SAVE_VERSION = 3;
+const GROW_TAP_MAX = 2; // сколько раз за один рост тап по ростку приносит монету
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
 
 // Быстрые цели. stat — что считаем (накопительно за всё время), target — сколько нужно, reward — монеты
@@ -617,6 +618,7 @@ class PixelFarm {
         return;
       }
       this.plantCrop(plot, crop, cx, cy, false);
+      if (this.stats.planted <= 3) this.addFloatingText(cx, cy - 30, 'ТАПАЙ ПО РОСТКУ!', '#ffffff', 9);
       if (!this.tutorialDone) {
         this.tutorialDone = true;
         this.updateUI();
@@ -633,8 +635,19 @@ class PixelFarm {
       return;
     }
 
-    // 4. Растёт
+    // 4. Растёт: первые тапы дают монеты, потом показываем, сколько осталось
     if (plot.state === 'growing') {
+      if ((plot.taps || 0) < GROW_TAP_MAX) {
+        plot.taps = (plot.taps || 0) + 1;
+        const coin = this.level;
+        this.coins += coin;
+        this.stats.earned += coin;
+        sound.playTone(760, 'triangle', 0.05, 0.08);
+        this.addFloatingText(cx, cy, `+${coin} 💰`, '#ffde59', 11);
+        this.flyItem(cx, cy, '💰', 'coinsVal', 1);
+        this.updateUI();
+        return;
+      }
       const crop = CROPS[plot.crop];
       const left = Math.ceil(Math.max(0, this.growTimeOf(crop, plot) - (Date.now() - plot.plantedAt) / 1000));
       sound.playClick();
@@ -649,6 +662,7 @@ class PixelFarm {
     plot.state = 'growing';
     plot.plantedAt = Date.now();
     plot.ripeAt = 0;
+    plot.taps = 0;
     this.stats.planted += 1;
     if (!auto) {
       sound.playPlant();
