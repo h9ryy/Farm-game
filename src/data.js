@@ -144,7 +144,7 @@ export const PLOT_COSTS = [
 ];
 
 // Цены золотых грядок (всего 5)
-export const GOLDEN_COSTS = [350000, 1000000, 2800000, 6500000, 13000000];
+export const GOLDEN_COSTS = [200000, 500000, 1700000, 3000000, 4000000];
 
 // Улучшение обычной грядки (даёт сажать тыкву и виноград): цена растёт с каждой улучшенной
 export const PLOT_UPGRADE_BASE = 20000;
@@ -211,7 +211,7 @@ export const BUILDINGS = {
     id: 'apiary',
     name: 'Пасека',
     icon: '🐝',
-    cost: 140000,
+    cost: 100000,
     levelReq: 6,
     desc: 'Пчела пролетает над полем: поймай её, и рост ускорится',
   },
@@ -227,8 +227,8 @@ export const BUILDINGS = {
     id: 'barn',
     name: 'Амбар',
     icon: '🏚',
-    cost: 3000000,
-    levelReq: 8,
+    cost: 3500000,
+    levelReq: 11,
     desc: 'Сам продаёт урожай и добавляет +10% к цене',
   },
 };
