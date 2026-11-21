@@ -1,12 +1,12 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
-import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, UPGRADES } from './data.js';
+import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт = число собранных урожаев. Нужно для каждого уровня (индекс = уровень)
-const LEVEL_XP = [0, 0, 10, 18, 28, 40, 55, 187, 341, 561, 869, 1287];
+const LEVEL_XP = [0, 0, 10, 18, 28, 40, 55, 325, 640, 1090, 1720, 2575];
 const MAX_LEVEL = LEVEL_XP.length - 1;
-const GRID = 5;       // поле 5x5
+const GRID = 6;       // поле 6x6 (грядки и здания)
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
 const SAVE_VERSION = 3;
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
@@ -64,6 +64,8 @@ class PixelFarm {
     }));
     this.placing = false; // режим выбора места для новой грядки ('regular' или 'golden')
     this.upgrading = false; // режим выбора грядки для улучшения
+    this.buildings = []; // здания: { id, x, y, t, ... }
+    this.bee = null; // пчела с пасеки
 
     this.floatingTexts = [];
     this.particles = [];
@@ -105,13 +107,38 @@ class PixelFarm {
   }
 
   priceOf(crop) {
-    return Math.round(crop.sellPrice * (1 + UPGRADES.value.effectPerLevel * this.upgrades.value));
+    const barn = this.hasBuilding('barn') ? 1 + BUILDING_SETTINGS.barnBonus : 1;
+    return Math.round(crop.sellPrice * (1 + UPGRADES.value.effectPerLevel * this.upgrades.value) * barn);
+  }
+
+  hasBuilding(id) {
+    return this.buildings.some((b) => b.id === id);
+  }
+
+  getBuilding(id) {
+    return this.buildings.find((b) => b.id === id) || null;
+  }
+
+  // Сколько урожая зарезервировано под заказы лавки
+  reservedFor(id) {
+    const shop = this.getBuilding('shop');
+    return shop ? shop.orders.filter((o) => o.crop === id).reduce((a, o) => a + o.qty, 0) : 0;
+  }
+
+  sellable(id) {
+    return Math.max(0, this.inventory[id] - this.reservedFor(id));
+  }
+
+  bestCrop() {
+    return Object.values(CROPS)
+      .filter((c) => c.levelReq <= this.level)
+      .reduce((a, c) => (c.sellPrice > a.sellPrice ? c : a));
   }
 
   sellTotal() {
     let total = 0;
     Object.values(CROPS).forEach((c) => {
-      total += this.inventory[c.id] * this.priceOf(c);
+      total += this.sellable(c.id) * this.priceOf(c);
     });
     return total;
   }
@@ -148,7 +175,7 @@ class PixelFarm {
     const slots = [];
     for (let y = 0; y < GRID; y++) {
       for (let x = 0; x < GRID; x++) {
-        if (this.plots.some((p) => p.x === x && p.y === y)) continue;
+        if (this.plots.some((p) => p.x === x && p.y === y) || this.buildings.some((b) => b.x === x && b.y === y)) continue;
         if (this.plots.some((p) => Math.abs(p.x - x) + Math.abs(p.y - y) === 1)) slots.push({ x, y });
       }
     }
@@ -184,6 +211,10 @@ class PixelFarm {
 
   placePlot(x, y) {
     const type = this.placing;
+    if (typeof type === 'string' && type.startsWith('building:')) {
+      this.placeBuilding(x, y);
+      return;
+    }
     const cost = this.nextPlotCost(type);
     if (cost === null || this.coins < cost) return;
     this.coins -= cost;
@@ -198,6 +229,173 @@ class PixelFarm {
     this.updateUI();
     this.resize();
     this.saveGame();
+  }
+
+  // ---------- ЗДАНИЯ ----------
+  startPlacingBuilding(id) {
+    const def = BUILDINGS[id];
+    if (!def || this.hasBuilding(id) || this.level < def.levelReq || this.plotSlots().length === 0) return;
+    if (this.coins < def.cost) {
+      sound.playClick();
+      return;
+    }
+    sound.playClick();
+    this.closeShop();
+    this.placing = `building:${id}`;
+    this.upgrading = false;
+    this.updateUI();
+    this.resize();
+  }
+
+  placeBuilding(x, y) {
+    const id = String(this.placing).slice('building:'.length);
+    const def = BUILDINGS[id];
+    if (!def || this.hasBuilding(id) || this.coins < def.cost) return;
+    this.coins -= def.cost;
+    const b = { id, x, y, t: 0 };
+    if (id === 'coop') b.eggs = 0;
+    if (id === 'shop') b.orders = [];
+    this.buildings.push(b);
+    this.placing = false;
+    const { px, py } = this.plotPos({ x, y });
+    this.addFloatingText(px + this.tile / 2, py + this.tile / 2, 'ПОСТРОЕНО!', '#7bed9f');
+    this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
+    this.buzz(30);
+    sound.playUnlock();
+    this.updateUI();
+    this.resize();
+    this.saveGame();
+  }
+
+  newOrder() {
+    const maxTier = Math.max(...this.plots.map((p) => this.plotTier(p)));
+    const pool = Object.values(CROPS).filter((c) => c.levelReq <= this.level && (c.tier || 0) <= maxTier);
+    const crop = pool[Math.floor(Math.random() * pool.length)];
+    const qty = 3 + Math.floor(Math.random() * 4);
+    return { crop: crop.id, qty, reward: Math.round(qty * this.priceOf(crop) * BUILDING_SETTINGS.orderBonus) };
+  }
+
+  onBuildingClick(b, cx, cy) {
+    sound.ensureContext();
+    const def = BUILDINGS[b.id];
+    if (b.id === 'coop') {
+      if (b.eggs > 0) {
+        const reward = b.eggs * this.priceOf(this.bestCrop());
+        this.coins += reward;
+        this.stats.earned += reward;
+        b.eggs = 0;
+        sound.playSell();
+        this.buzz(20);
+        this.addFloatingText(cx, cy, `+💰${reward}`, '#ffde59');
+        this.flyItem(cx, cy, '💰', 'coinsVal', 5);
+        this.updateUI();
+      } else {
+        sound.playClick();
+        this.addFloatingText(cx, cy, 'ЯЙЦА СКОРО', '#ffffff', 10);
+      }
+      return;
+    }
+    if (b.id === 'shop') {
+      const o = b.orders.find((x) => this.inventory[x.crop] >= x.qty);
+      if (o) {
+        this.inventory[o.crop] -= o.qty;
+        b.orders.splice(b.orders.indexOf(o), 1);
+        this.coins += o.reward;
+        this.stats.earned += o.reward;
+        sound.playSell();
+        this.buzz(25);
+        this.addFloatingText(cx, cy, `ЗАКАЗ! +💰${o.reward}`, '#ffde59', 11);
+        this.flyItem(cx, cy, '💰', 'coinsVal', 6);
+        this.updateUI();
+      } else if (b.orders.length > 0) {
+        const f = b.orders[0];
+        sound.playClick();
+        this.addFloatingText(cx, cy, `НУЖНО ${f.qty} ${CROPS[f.crop].icon}`, '#ffffff', 11);
+      } else {
+        sound.playClick();
+        this.addFloatingText(cx, cy, 'ЗАКАЗОВ НЕТ', '#ffffff', 10);
+      }
+      return;
+    }
+    sound.playClick();
+    this.addFloatingText(cx, cy, def.name.toUpperCase(), '#ffffff', 10);
+  }
+
+  spawnBee() {
+    this.bee = { t: 0, dur: 7, x: -30, y: 0, y0: this.gridY + Math.random() * GRID * this.tile };
+  }
+
+  tapBee() {
+    const boost = BUILDING_SETTINGS.beeBoost * 1000;
+    this.plots.forEach((p) => {
+      if (p.state === 'growing') p.plantedAt -= boost;
+    });
+    sound.playHarvest();
+    this.buzz(25);
+    this.addFloatingText(this.bee.x, this.bee.y, `РОСТ +${BUILDING_SETTINGS.beeBoost} с!`, '#ffde59', 11);
+    this.spawnHarvestParticles(this.bee.x, this.bee.y);
+    this.bee = null;
+  }
+
+  barnSell(b) {
+    const total = this.sellTotal();
+    if (total <= 0) return;
+    this.coins += total;
+    this.stats.earned += total;
+    Object.keys(CROPS).forEach((id) => (this.inventory[id] -= this.sellable(id)));
+    const { px, py } = this.plotPos(b);
+    this.addFloatingText(px + this.tile / 2, py + this.tile / 2, `+💰${total}`, '#ffde59', 11);
+    this.flyItem(px + this.tile / 2, py + this.tile / 2, '💰', 'coinsVal', 4);
+    sound.playTone(880, 'triangle', 0.08, 0.08);
+    this.updateUI();
+  }
+
+  updateBuildings(dt) {
+    const S = BUILDING_SETTINGS;
+    const step = Math.min(dt, 1);
+    this.buildings.forEach((b) => {
+      if (b.id === 'coop') {
+        if (b.eggs < S.eggMax) {
+          b.t += step;
+          if (b.t >= S.eggInterval) {
+            b.t = 0;
+            b.eggs += 1;
+          }
+        }
+      } else if (b.id === 'shop') {
+        if (b.orders.length < S.orderMax) {
+          b.t += step;
+          if (b.t >= S.orderInterval) {
+            b.t = 0;
+            b.orders.push(this.newOrder());
+            this.updateUI();
+          }
+        }
+      } else if (b.id === 'apiary') {
+        if (!this.bee) {
+          b.t += step;
+          if (b.t >= S.beeInterval) {
+            b.t = 0;
+            this.spawnBee();
+          }
+        }
+      } else if (b.id === 'barn') {
+        b.t += step;
+        if (b.t >= S.barnInterval) {
+          b.t = 0;
+          this.barnSell(b);
+        }
+      }
+    });
+    if (this.bee) {
+      this.bee.t += step;
+      if (this.bee.t >= this.bee.dur) {
+        this.bee = null;
+      } else {
+        this.bee.x = -30 + (this.canvas.width + 60) * (this.bee.t / this.bee.dur);
+        this.bee.y = this.bee.y0 + Math.sin(this.bee.t * 3) * 30;
+      }
+    }
   }
 
   // Улучшение обычной грядки: можно сажать тыкву и виноград
@@ -337,6 +535,17 @@ class PixelFarm {
         if (h && this.canUpgrade(h.plot)) this.upgradePlot(h.plot);
         return;
       }
+      if (this.bee && Math.hypot(mx - this.bee.x, my - this.bee.y) < 36) {
+        this.tapBee();
+        return;
+      }
+      for (const b of this.buildings) {
+        const { px, py } = this.plotPos(b);
+        if (mx >= px && mx <= px + this.tile && my >= py && my <= py + this.tile) {
+          this.onBuildingClick(b, px + this.tile / 2, py + this.tile / 2);
+          return;
+        }
+      }
       const hit = getPlotAtPos(mx, my);
       if (hit) this.onPlotClick(hit.plot, hit.px + this.tile / 2, hit.py + this.tile / 2);
     };
@@ -422,20 +631,29 @@ class PixelFarm {
     plot.crop = null;
     plot.plantedAt = 0;
     plot.ripeAt = 0;
-    this.inventory[crop.id] += 1;
+    const golden = this.hasBuilding('scarecrow') && Math.random() < BUILDING_SETTINGS.goldenChance;
+    const amount = golden ? 5 : 1;
+    this.inventory[crop.id] += amount;
     this.stats.harvested += 1;
     this.xp += 1;
 
     if (auto) {
       sound.playTone(700, 'sine', 0.05, 0.05);
-      this.addFloatingText(cx, cy, `+1 ${crop.icon}`, '#c8f7dc', 10);
+      this.addFloatingText(cx, cy, `+${amount} ${crop.icon}`, golden ? '#ffd23f' : '#c8f7dc', 10);
     } else {
       sound.playHarvest();
-      this.addFloatingText(cx, cy, `+1 ${crop.icon}`, '#7bed9f');
+      this.addFloatingText(cx, cy, `+${amount} ${crop.icon}`, golden ? '#ffd23f' : '#7bed9f');
       this.spawnHarvestParticles(cx, cy);
     }
 
-    this.flyItem(cx, cy, crop.icon, 'cropCountVal', 1);
+    this.flyItem(cx, cy, crop.icon, 'cropCountVal', golden ? 5 : 1);
+    if (golden) {
+      sound.playUnlock();
+      this.buzz(40);
+      this.addFloatingText(cx, cy - 22, 'ЗОЛОТОЙ УРОЖАЙ ×5!', '#ffd23f', 12);
+      this.spawnHarvestParticles(cx, cy);
+      this.spawnHarvestParticles(cx, cy);
+    }
     if (!auto) this.buzz(15);
 
     if (this.level > levelBefore) {
@@ -461,7 +679,7 @@ class PixelFarm {
     }
     this.coins += total;
     this.stats.earned += total;
-    Object.keys(CROPS).forEach((id) => (this.inventory[id] = 0));
+    Object.keys(CROPS).forEach((id) => (this.inventory[id] -= this.sellable(id)));
     this.flyItem(this.canvas.width / 2, this.canvas.height / 2 - 40, '💰', 'coinsVal', 8);
     this.buzz(25);
     sound.playSell();
@@ -548,6 +766,7 @@ class PixelFarm {
       if (id === 'plot') this.startPlacing('regular');
       else if (id === 'golden') this.startPlacing('golden');
       else if (id === 'plotup') this.startUpgrading();
+      else if (id.startsWith('b:')) this.startPlacingBuilding(id.slice(2));
       else this.buyUpgrade(id);
     });
 
@@ -559,7 +778,7 @@ class PixelFarm {
     if (modal.classList.contains('hidden')) return;
 
     // Перерисовываем только если что-то изменилось, чтобы не сбивать нажатия
-    const key = JSON.stringify([this.coins, this.upgrades, this.plots.map((p) => this.plotTier(p)).join('')]);
+    const key = JSON.stringify([this.coins, this.upgrades, this.plots.map((p) => this.plotTier(p)).join(''), this.buildings.length, this.level]);
     if (key === this._shopKey) return;
     this._shopKey = key;
 
@@ -608,6 +827,16 @@ class PixelFarm {
             <button class="pixel-btn up-buy ${can ? 'can' : ''}" data-up="${id}" ${off ? 'disabled' : ''}>${label}</button>
           </div>`;
 
+    const noBuildSlots = this.plotSlots().length === 0;
+    const bCards = '<div class="shop-title">🏠 ПОСТРОЙКИ</div>' + Object.values(BUILDINGS).map((def) => {
+      const built = this.hasBuilding(def.id);
+      const locked = this.level < def.levelReq;
+      const off = built || locked || noBuildSlots;
+      const label = built ? 'ЕСТЬ' : locked ? `УР.${def.levelReq}` : '💰' + def.cost;
+      return card(def.icon, def.name, def.desc, built ? 'Построено' : `Открывается с ${def.levelReq} уровня`, 'b:' + def.id,
+        !off && this.coins >= def.cost, off, label);
+    }).join('');
+
     list.insertAdjacentHTML('afterbegin',
       '<div class="shop-title">ГРЯДКИ</div>' +
       card('🟫', 'Новая грядка', 'Ставишь сам, рядом с уже имеющимися',
@@ -620,6 +849,7 @@ class PixelFarm {
       card('⭐', 'Золотая грядка', `Мифические плоды, сама сажает и собирает, +${bonusPct}% роста соседям`,
         `Золотых: ${this.goldenCount()} из ${GOLDEN_COSTS.length}`,
         'golden', !goldMax && this.coins >= goldCost, goldMax, goldMax ? 'МАКС' : '💰' + goldCost) +
+      bCards +
       '<div class="shop-title">УЛУЧШЕНИЯ</div>');
   }
 
@@ -673,11 +903,15 @@ class PixelFarm {
     const hasSlot = this.plotSlots().length > 0;
     const canBuyPlot = hasSlot && ((rc !== null && this.coins >= rc) || (gc !== null && this.coins >= gc));
     const canUpPlot = this.plots.some((p) => this.canUpgrade(p)) && this.coins >= this.plotUpgradeCost();
-    document.getElementById('shopBtn').classList.toggle('alert', canBuy || canBuyPlot || canUpPlot);
+    const canBuyBld = this.plotSlots().length > 0 && Object.values(BUILDINGS).some((d) => !this.hasBuilding(d.id) && this.level >= d.levelReq && this.coins >= d.cost);
+    document.getElementById('shopBtn').classList.toggle('alert', canBuy || canBuyPlot || canUpPlot || canBuyBld);
 
     document.getElementById('hint').style.display = this.tutorialDone ? 'none' : '';
     document.getElementById('placeBanner').style.display = this.placing || this.upgrading ? '' : 'none';
-    if (this.placing) {
+    if (typeof this.placing === 'string' && this.placing.startsWith('building:')) {
+      const d = BUILDINGS[this.placing.slice(9)];
+      document.getElementById('placeText').textContent = `Выбери место: ${d.icon} ${d.name} (💰${d.cost})`;
+    } else if (this.placing) {
       const c = this.nextPlotCost(this.placing);
       const what = this.placing === 'golden' ? '⭐ золотой грядки' : 'грядки';
       document.getElementById('placeText').textContent = `Выбери место для ${what} (💰${c})`;
@@ -696,6 +930,7 @@ class PixelFarm {
       inventory: this.inventory,
       upgrades: this.upgrades,
       stats: this.stats,
+      buildings: this.buildings,
       questIndex: this.questIndex,
       lastDaily: this.lastDaily,
       streak: this.streak,
@@ -744,6 +979,18 @@ class PixelFarm {
       if (typeof saved.lastDaily === 'string') this.lastDaily = saved.lastDaily;
       if (typeof saved.streak === 'number') this.streak = saved.streak;
       if (typeof saved.savedAt === 'number') this.awaySeconds = (Date.now() - saved.savedAt) / 1000;
+      if (Array.isArray(saved.buildings)) {
+        saved.buildings.forEach((sb) => {
+          const def = BUILDINGS[sb.id];
+          if (!def || this.hasBuilding(sb.id) || !(sb.x >= 0 && sb.x < GRID && sb.y >= 0 && sb.y < GRID)) return;
+          const b = { id: sb.id, x: sb.x, y: sb.y, t: 0 };
+          if (sb.id === 'coop') b.eggs = Math.min(BUILDING_SETTINGS.eggMax, sb.eggs || 0);
+          if (sb.id === 'shop') {
+            b.orders = Array.isArray(sb.orders) ? sb.orders.filter((o) => CROPS[o.crop]).slice(0, BUILDING_SETTINGS.orderMax) : [];
+          }
+          this.buildings.push(b);
+        });
+      }
       this.tutorialDone = !!saved.tutorialDone;
       if (Array.isArray(saved.plots)) {
         // Старые координаты грядок из версии 2 (по номеру)
@@ -963,6 +1210,7 @@ class PixelFarm {
   update(dt) {
     const now = Date.now();
     const delay = this.autoDelay();
+    this.updateBuildings(dt);
 
     this.plots.forEach((plot) => {
       if (plot.state === 'growing') {
@@ -1038,7 +1286,26 @@ class PixelFarm {
       ctx.restore();
     });
 
+    this.buildings.forEach((b) => {
+      const { px, py } = this.plotPos(b);
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(k, k);
+      this.drawBuilding(b);
+      ctx.restore();
+    });
+
     if (this.placing) this.plotSlots().forEach((slot) => this.drawSlot(slot.x, slot.y));
+
+    if (this.bee) {
+      ctx.save();
+      ctx.font = `30px ${EMOJI_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('🐝', Math.round(this.bee.x), Math.round(this.bee.y));
+      ctx.restore();
+    }
 
     this.particles.forEach((p) => {
       ctx.save();
@@ -1218,6 +1485,62 @@ class PixelFarm {
       ctx.font = `16px ${EMOJI_FONT}`;
       ctx.fillStyle = '#ffffff';
       ctx.fillText(crop.icon, cx, 19);
+    }
+  }
+
+  drawBuilding(b) {
+    const ctx = this.ctx;
+    const S = BASE;
+    const def = BUILDINGS[b.id];
+    const now = Date.now();
+    const SET = BUILDING_SETTINGS;
+
+    ctx.fillStyle = '#5c381e';
+    ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = '#d9c7a0';
+    ctx.fillRect(3, 3, S - 6, S - 6);
+    ctx.fillStyle = '#e8dbb8';
+    ctx.fillRect(3, 3, S - 6, 3);
+    ctx.fillStyle = '#c9b389';
+    ctx.fillRect(7, 7, S - 14, S - 14);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `46px ${EMOJI_FONT}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(def.icon, S / 2, S / 2 - 4 + Math.round(Math.sin(now / 400) * 2));
+
+    const pill = (text, color) => {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(12, 66, S - 24, 22);
+      ctx.fillStyle = color;
+      ctx.fillRect(14, 68, S - 28, 18);
+      ctx.font = `10px 'Press Start 2P', ${EMOJI_FONT}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, S / 2, 78);
+    };
+    const bar = (frac, color) => {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(13, 77, S - 26, 8);
+      ctx.fillStyle = color;
+      ctx.fillRect(14, 78, Math.round((S - 28) * Math.min(1, frac)), 6);
+    };
+
+    if (b.id === 'coop') {
+      if (b.eggs > 0) pill(`🥚×${b.eggs}`, '#2ed573');
+      else bar(b.t / SET.eggInterval, '#ffd23f');
+    } else if (b.id === 'shop') {
+      if (b.orders.length > 0) {
+        const o = b.orders[0];
+        const have = Math.min(this.inventory[o.crop], o.qty);
+        pill(`${CROPS[o.crop].icon}${have}/${o.qty}`, have >= o.qty ? '#2ed573' : '#8c6239');
+      }
+    } else if (b.id === 'apiary') {
+      if (!this.bee) bar(b.t / SET.beeInterval, '#ffd23f');
+    } else if (b.id === 'barn') {
+      bar(b.t / SET.barnInterval, '#7bed9f');
+    } else if (b.id === 'scarecrow') {
+      pill(`×5 ${Math.round(SET.goldenChance * 100)}%`, '#8c6239');
     }
   }
 

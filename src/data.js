@@ -144,11 +144,11 @@ export const PLOT_COSTS = [
 ];
 
 // Цены золотых грядок (всего 5)
-export const GOLDEN_COSTS = [150000, 400000, 900000, 1800000, 3500000];
+export const GOLDEN_COSTS = [350000, 1000000, 2800000, 6500000, 13000000];
 
 // Улучшение обычной грядки (даёт сажать тыкву и виноград): цена растёт с каждой улучшенной
-export const PLOT_UPGRADE_BASE = 30000;
-export const PLOT_UPGRADE_MULT = 1.25; // каждое следующее улучшение дороже в 1.25 раза
+export const PLOT_UPGRADE_BASE = 50000;
+export const PLOT_UPGRADE_MULT = 1.3; // каждое следующее улучшение дороже в 1.25 раза
 
 // Бонус к скорости роста от каждой золотой грядки рядом (0.15 = +15%)
 export const NEIGHBOR_BONUS = 0.15;
@@ -160,7 +160,7 @@ export const UPGRADES = {
     description: 'Культуры растут быстрее',
     icon: '⚡',
     baseCost: 40,
-    costMultiplier: 3.0,
+    costMultiplier: 3.3,
     maxLevel: 10,
     effectPerLevel: 0.15, // +15% к скорости роста за уровень
   },
@@ -170,7 +170,7 @@ export const UPGRADES = {
     description: 'Урожай продаётся дороже',
     icon: '💎',
     baseCost: 60,
-    costMultiplier: 3.2,
+    costMultiplier: 3.5,
     maxLevel: 10,
     effectPerLevel: 0.20, // +20% к цене продажи за уровень
   },
@@ -180,11 +180,69 @@ export const UPGRADES = {
     description: 'Сам собирает созревший урожай',
     icon: '🧺',
     baseCost: 150,
-    costMultiplier: 3.5,
+    costMultiplier: 3.6,
     maxLevel: 5,
     delays: [0, 8, 6, 4, 2, 1], // через сколько секунд после созревания собирает (индекс = уровень)
   }
 };
 
-// Все культуры растут быстрее на четверть (время × 0.75). Чем меньше число, тем быстрее
+// Все культуры растут быстрее на четверть (время × 0.75). Поменяй число, чтобы ускорить или замедлить всё сразу
 export const GROW_SCALE = 0.75;
+
+// ---------- Здания (ставятся на поле рядом с грядками) ----------
+export const BUILDINGS = {
+  coop: {
+    id: 'coop',
+    name: 'Курятник',
+    icon: '🐔',
+    cost: 2000,
+    levelReq: 3,
+    desc: 'Несёт яйца: тапни по зданию и получи монеты',
+  },
+  shop: {
+    id: 'shop',
+    name: 'Лавка',
+    icon: '🏪',
+    cost: 28000,
+    levelReq: 5,
+    desc: 'Заказы покупателей: награда в 2 раза выше цены',
+  },
+  apiary: {
+    id: 'apiary',
+    name: 'Пасека',
+    icon: '🐝',
+    cost: 140000,
+    levelReq: 6,
+    desc: 'Пчела пролетает над полем: поймай её, и рост ускорится',
+  },
+  scarecrow: {
+    id: 'scarecrow',
+    name: 'Пугало',
+    icon: '👨‍🌾',
+    cost: 700000,
+    levelReq: 7,
+    desc: 'Шанс золотого урожая ×5 при каждом сборе',
+  },
+  barn: {
+    id: 'barn',
+    name: 'Амбар',
+    icon: '🏚',
+    cost: 3000000,
+    levelReq: 8,
+    desc: 'Сам продаёт урожай и добавляет +10% к цене',
+  },
+};
+
+// Настройки зданий
+export const BUILDING_SETTINGS = {
+  eggInterval: 25,   // секунд до нового яйца
+  eggMax: 3,         // сколько яиц копится
+  orderInterval: 25, // секунд до нового заказа в лавке
+  orderMax: 2,       // сколько заказов одновременно
+  orderBonus: 2,     // награда за заказ = цена урожая × это число
+  beeInterval: 20,   // секунд между пчёлами
+  beeBoost: 5,       // на сколько секунд ускоряет рост при поимке
+  goldenChance: 0.08, // шанс золотого урожая (8%)
+  barnInterval: 20,  // как часто амбар продаёт урожай
+  barnBonus: 0.1,    // +10% к цене продажи
+};
