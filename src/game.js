@@ -1,6 +1,6 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
-import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, UPGRADES } from './data.js';
+import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт = число собранных урожаев. Нужно для каждого уровня (индекс = уровень)
@@ -84,7 +84,7 @@ class PixelFarm {
   // ---------- ЭФФЕКТЫ УЛУЧШЕНИЙ ----------
   growTimeOf(crop, plot) {
     const bonus = plot ? this.neighborBonus(plot) : 0;
-    return crop.growTime / (1 + UPGRADES.speed.effectPerLevel * this.upgrades.speed + bonus);
+    return (crop.growTime * GROW_SCALE) / (1 + UPGRADES.speed.effectPerLevel * this.upgrades.speed + bonus);
   }
 
   // Каждая золотая грядка рядом ускоряет рост на этой грядке
