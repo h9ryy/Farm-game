@@ -66,6 +66,7 @@ class PixelFarm {
     this.upgrading = false; // режим выбора грядки для улучшения
     this.buildings = []; // здания: { id, x, y, t, ... }
     this.bee = null; // пчела с пасеки
+    this.valueLog = []; // стоимость собранного урожая (для расчёта дохода)
 
     this.floatingTexts = [];
     this.particles = [];
@@ -127,6 +128,18 @@ class PixelFarm {
 
   sellable(id) {
     return Math.max(0, this.inventory[id] - this.reservedFor(id));
+  }
+
+  // Средний доход от сбора урожая за последнюю минуту (монет в секунду)
+  incomePerSec() {
+    const from = Date.now() - 60000;
+    this.valueLog = this.valueLog.filter((e) => e.t >= from);
+    return this.valueLog.reduce((a, e) => a + e.v, 0) / 60;
+  }
+
+  // Яйцо стоит около 4 секунд твоего дохода, но не меньше трёх пшениц
+  eggValue() {
+    return Math.max(3 * this.priceOf(CROPS.wheat), Math.round(this.incomePerSec() * 4));
   }
 
   bestCrop() {
@@ -280,7 +293,7 @@ class PixelFarm {
     const def = BUILDINGS[b.id];
     if (b.id === 'coop') {
       if (b.eggs > 0) {
-        const reward = b.eggs * this.priceOf(this.bestCrop());
+        const reward = b.eggs * this.eggValue();
         this.coins += reward;
         this.stats.earned += reward;
         b.eggs = 0;
@@ -636,6 +649,7 @@ class PixelFarm {
     this.inventory[crop.id] += amount;
     this.stats.harvested += 1;
     this.xp += 1;
+    this.valueLog.push({ t: Date.now(), v: this.priceOf(crop) * amount });
 
     if (auto) {
       sound.playTone(700, 'sine', 0.05, 0.05);
