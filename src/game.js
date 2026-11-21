@@ -243,6 +243,25 @@ class PixelFarm {
     this.resize();
   }
 
+  // После постановки грядки остаёмся в режиме, пока хватает монет и есть куда ставить
+  keepPlacing(type) {
+    const cost = this.nextPlotCost(type);
+    const hasSlots = this.plotSlots().length > 0;
+    if (cost !== null && hasSlots && this.coins >= cost) return;
+    this.placing = false;
+    if (cost !== null && hasSlots) {
+      this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, 'НЕТ МОНЕТ!', '#ff4d4d', 14);
+    }
+  }
+
+  // То же для улучшения грядок
+  keepUpgrading() {
+    const left = this.plots.some((p) => this.canUpgrade(p));
+    if (left && this.coins >= this.plotUpgradeCost()) return;
+    this.upgrading = false;
+    if (left) this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, 'НЕТ МОНЕТ!', '#ff4d4d', 14);
+  }
+
   placePlot(x, y) {
     const type = this.placing;
     if (typeof type === 'string' && type.startsWith('building:')) {
@@ -254,7 +273,7 @@ class PixelFarm {
     this.coins -= cost;
     this.plots.push({ x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: type === 'golden', upgraded: false, lastCrop: null });
     this.stats.plots += 1;
-    this.placing = false;
+    this.keepPlacing(type);
     const { px, py } = this.plotPos({ x, y });
     this.addFloatingText(px + this.tile / 2, py + this.tile / 2, 'НОВАЯ ГРЯДКА!', '#7bed9f');
     this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
@@ -483,7 +502,7 @@ class PixelFarm {
     this.coins -= cost;
     plot.upgraded = true;
     this.stats.upgrades += 1;
-    this.upgrading = false;
+    this.keepUpgrading();
     const { px, py } = this.plotPos(plot);
     this.addFloatingText(px + this.tile / 2, py + this.tile / 2, 'ГРЯДКА УЛУЧШЕНА!', '#9fd3ff', 10);
     this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
