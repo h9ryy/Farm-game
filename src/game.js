@@ -104,6 +104,26 @@ class PixelFarm {
     return plot.premium ? 2 : plot.upgraded ? 1 : 0;
   }
 
+  // На обычную грядку сажаются обычные культуры, на улучшенную особые (тыква, виноград),
+  // на золотую мифические плоды. Пока своих культур у ступени ещё нет (не хватает уровня),
+  // можно сажать культуры ниже ступенью, чтобы грядка не простаивала.
+  canPlant(plot, crop) {
+    if (this.level < crop.levelReq) return false;
+    const tier = this.plotTier(plot);
+    const ct = crop.tier || 0;
+    if (ct === tier) return true;
+    const hasOwn = Object.values(CROPS).some((c) => (c.tier || 0) === tier && this.level >= c.levelReq);
+    return !hasOwn && ct < tier;
+  }
+
+  // Что сажать на золотой грядке автоматически
+  autoCropFor(plot) {
+    const last = plot.lastCrop && CROPS[plot.lastCrop];
+    if (last && this.canPlant(plot, last)) return last;
+    const list = Object.values(CROPS).filter((c) => this.canPlant(plot, c));
+    return list.length ? list.reduce((a, c) => (c.sellPrice > a.sellPrice ? c : a)) : null;
+  }
+
   fmt(n) {
     return n >= 1000 ? `${(n / 1000).toFixed(n % 1000 ? 1 : 0)}K` : `${n}`;
   }
@@ -606,10 +626,14 @@ class PixelFarm {
     // 2. Пустая грядка: посадка
     if (plot.state === 'empty') {
       const crop = CROPS[this.selectedCrop];
-      const need = crop.tier || 0;
-      if (this.plotTier(plot) < need) {
+      if (!this.canPlant(plot, crop)) {
+        const need = crop.tier || 0;
+        const tier = this.plotTier(plot);
+        let msg;
+        if (need > tier) msg = need === 2 ? '⭐ ТОЛЬКО ЗОЛОТЫЕ' : 'НУЖНА УЛУЧШЕННАЯ';
+        else msg = tier === 2 ? '⭐ ТУТ ТОЛЬКО МИФИЧЕСКИЕ' : 'ТУТ ТОЛЬКО ОСОБЫЕ';
         sound.playClick();
-        this.addFloatingText(cx, cy, need === 2 ? '⭐ ТОЛЬКО ЗОЛОТЫЕ' : 'НУЖНА УЛУЧШЕННАЯ', '#ffde59', 9);
+        this.addFloatingText(cx, cy, msg, '#ffde59', 9);
         return;
       }
       if (this.coins < crop.seedCost) {
@@ -631,7 +655,7 @@ class PixelFarm {
     if (plot.state === 'ripe') {
       this.harvestPlot(plot, cx, cy, false);
       // Золотая грядка потом сама посадит выбранную сейчас культуру
-      if (plot.premium && this.level >= CROPS[this.selectedCrop].levelReq) plot.lastCrop = this.selectedCrop;
+      if (plot.premium && this.canPlant(plot, CROPS[this.selectedCrop])) plot.lastCrop = this.selectedCrop;
       return;
     }
 
@@ -1285,8 +1309,8 @@ class PixelFarm {
         }
       } else if (plot.state === 'empty' && plot.premium && plot.lastCrop) {
         // Автопосадка на золотой грядке (семена платные)
-        const crop = CROPS[plot.lastCrop];
-        if (this.level >= crop.levelReq && this.coins >= crop.seedCost) {
+        const crop = this.autoCropFor(plot);
+        if (crop && this.coins >= crop.seedCost) {
           this.plantCrop(plot, crop, 0, 0, true);
         }
       }
@@ -1495,6 +1519,7 @@ class PixelFarm {
     // --- Пустая: показываем выбранные семена ---
     if (plot.state === 'empty') {
       const crop = CROPS[this.selectedCrop];
+      if (!this.canPlant(plot, crop)) return; // здесь этот плод сажать нельзя: не показываем
       const can = this.coins >= crop.seedCost;
       ctx.globalAlpha = can ? 0.55 + 0.25 * Math.sin(now / 300) : 0.2;
       ctx.font = `36px ${EMOJI_FONT}`;
