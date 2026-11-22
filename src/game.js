@@ -2,9 +2,8 @@ import { sound } from './audio.js';
 import { sdk } from './sdk.js';
 import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
 
-// Опыт, нужный для каждого уровня (индекс = уровень)
-// Опыт = число собранных урожаев. Нужно для каждого уровня (индекс = уровень)
-const LEVEL_XP = [0, 0, 8, 16, 24, 33, 43, 140, 280, 480, 760, 1150];
+// Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
+const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 800, 1500, 2300, 3300, 4500];
 const MAX_LEVEL = LEVEL_XP.length - 1;
 const GRID = 6;       // поле 6x6 (грядки и здания)
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
@@ -98,6 +97,11 @@ class PixelFarm {
       if (o.premium && Math.abs(o.x - plot.x) + Math.abs(o.y - plot.y) === 1) n += 1;
     });
     return n * NEIGHBOR_BONUS;
+  }
+
+  // Опыт за один сбор: чем дольше растёт культура, тем больше опыта (пшеница 1, арбуз 13)
+  xpOf(crop) {
+    return Math.max(1, Math.round(crop.growTime / 3));
   }
 
   plotTier(plot) {
@@ -726,7 +730,7 @@ class PixelFarm {
     const amount = golden ? 5 : 1;
     this.inventory[crop.id] += amount;
     this.stats.harvested += 1;
-    this.xp += 1;
+    this.xp += this.xpOf(crop);
     this.valueLog.push({ t: Date.now(), v: this.priceOf(crop) * amount });
 
     if (auto) {
