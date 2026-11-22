@@ -1,5 +1,6 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
+import { makeFruitSprite, FRUIT_SPRITE_IDS } from './sprites.js';
 import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
@@ -68,6 +69,7 @@ class PixelFarm {
     this.buildings = []; // здания: { id, x, y, t, ... }
     this.bee = null; // пчела с пасеки
     this.valueLog = []; // стоимость собранного урожая (для расчёта дохода)
+    this.sprites = {}; // пиксельные спрайты мифических плодов
 
     this.floatingTexts = [];
     this.particles = [];
@@ -534,6 +536,7 @@ class PixelFarm {
   }
 
   async init() {
+    this.buildSprites();
     this.buildSeedBar();
     this.setupUI();
     this.resize();
@@ -822,6 +825,24 @@ class PixelFarm {
   }
 
   // ---------- ИНТЕРФЕЙС (HTML) ----------
+  // Рисуем спрайты мифических плодов один раз при запуске
+  buildSprites() {
+    this.sprites = {};
+    FRUIT_SPRITE_IDS.forEach((id) => {
+      const c = makeFruitSprite(id);
+      if (c) this.sprites[id] = c;
+    });
+  }
+
+  // Рисует спрайт плода в размере size (пиксели остаются чёткими)
+  drawFruit(id, x, y, size) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.sprites[id], Math.round(x), Math.round(y), size, size);
+    ctx.restore();
+  }
+
   buildSeedBar() {
     const bar = document.getElementById('seedBar');
     bar.innerHTML = '';
@@ -829,7 +850,9 @@ class PixelFarm {
       const btn = document.createElement('button');
       btn.className = 'seed-btn';
       btn.dataset.crop = c.id;
-      btn.innerHTML = `<span class="seed-icon">${c.icon}</span><span class="seed-info"></span>`;
+      const spr = this.sprites[c.id];
+      const iconHtml = spr ? `<img class="seed-img" alt="" src="${spr.toDataURL()}">` : c.icon;
+      btn.innerHTML = `<span class="seed-icon">${iconHtml}</span><span class="seed-info"></span>`;
       btn.addEventListener('click', () => this.selectCrop(c.id));
       bar.appendChild(btn);
     });
@@ -1564,9 +1587,13 @@ class PixelFarm {
       if (!this.canPlant(plot, crop)) return; // здесь этот плод сажать нельзя: не показываем
       const can = this.coins >= crop.seedCost;
       ctx.globalAlpha = can ? 0.55 + 0.25 * Math.sin(now / 300) : 0.2;
-      ctx.font = `36px ${EMOJI_FONT}`;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(crop.icon, cx, cy + 2);
+      if (this.sprites[crop.id]) {
+        this.drawFruit(crop.id, cx - 24, cy - 24, 48);
+      } else {
+        ctx.font = `36px ${EMOJI_FONT}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(crop.icon, cx, cy + 2);
+      }
       ctx.globalAlpha = 1;
       return;
     }
@@ -1592,6 +1619,8 @@ class PixelFarm {
       const bob = Math.round(Math.sin(now / 140) * 3);
       if (crop.id === 'wheat') {
         this.drawPixelRipeWheat(cx, cy + 12 + bob);
+      } else if (this.sprites[crop.id]) {
+        this.drawFruit(crop.id, cx - 24, cy - 14 + bob, 48);
       } else {
         ctx.font = `42px ${EMOJI_FONT}`;
         ctx.fillStyle = '#ffffff';
@@ -1604,9 +1633,13 @@ class PixelFarm {
       ctx.fillRect(cx - 20, 6, 40, 22);
       ctx.fillStyle = '#7bed9f';
       ctx.fillRect(cx - 20, 6, 40, 3);
-      ctx.font = `16px ${EMOJI_FONT}`;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(crop.icon, cx, 19);
+      if (this.sprites[crop.id]) {
+        this.drawFruit(crop.id, cx - 12, 5, 24);
+      } else {
+        ctx.font = `16px ${EMOJI_FONT}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(crop.icon, cx, 19);
+      }
     }
   }
 

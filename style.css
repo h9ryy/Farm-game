@@ -458,3 +458,9 @@ html, body {
 @media (max-width: 600px) {
   .shop-tab { font-size: 8px; padding: 9px 2px; }
 }
+
+.seed-img { width: 28px; height: 28px; image-rendering: pixelated; display: block; }
+
+@media (max-width: 600px) {
+  .seed-img { width: 22px; height: 22px; }
+}
