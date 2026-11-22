@@ -2,6 +2,7 @@ import { sound } from './audio.js';
 import { sdk } from './sdk.js';
 import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
 
+// Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
 const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 800, 1500, 2300, 3300, 4500];
 const MAX_LEVEL = LEVEL_XP.length - 1;
@@ -539,6 +540,11 @@ class PixelFarm {
     window.addEventListener('resize', () => this.resize());
     this.setupInputs();
 
+    // Сброс прогресса: открой игру с адресом вида http://127.0.0.1:5500/?reset
+    if ((window.location.search || '').includes('reset')) {
+      try { localStorage.removeItem('pixel_farm_save'); } catch (e) {}
+      if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname);
+    }
     await sdk.init();
     await this.loadSave();
     this.queuePopups();
@@ -856,6 +862,14 @@ class PixelFarm {
       if (e.target === modal) closeShop();
     });
     document.getElementById('upgradeList').addEventListener('click', (e) => {
+      const tabBtn = e.target.closest('[data-tab]');
+      if (tabBtn) {
+        this._shopTab = tabBtn.dataset.tab;
+        this._shopKey = '';
+        sound.playClick();
+        this.renderShop();
+        return;
+      }
       const btn = e.target.closest('[data-up]');
       if (!btn || btn.disabled) return;
       const id = btn.dataset.up;
@@ -874,33 +888,11 @@ class PixelFarm {
     if (modal.classList.contains('hidden')) return;
 
     // Перерисовываем только если что-то изменилось, чтобы не сбивать нажатия
-    const key = JSON.stringify([this.coins, this.upgrades, this.plots.map((p) => this.plotTier(p)).join(''), this.buildings.length, this.level]);
+    const tab = this._shopTab || 'plots';
+    const key = JSON.stringify([this.coins, this.upgrades, this.plots.map((p) => this.plotTier(p)).join(''), this.buildings.length, this.level, tab]);
     if (key === this._shopKey) return;
     this._shopKey = key;
 
-    document.getElementById('upgradeList').innerHTML = Object.values(UPGRADES)
-      .map((u) => {
-        const lvl = this.upgrades[u.id];
-        const max = lvl >= u.maxLevel;
-        const cost = this.upgradeCost(u.id);
-        const can = !max && this.coins >= cost;
-        return `
-          <div class="up-card">
-            <div class="up-icon">${u.icon}</div>
-            <div class="up-body">
-              <div class="up-name">${u.name}</div>
-              <div class="up-desc">${u.description}</div>
-              <div class="up-lvl">Уровень ${lvl} из ${u.maxLevel}</div>
-              <div class="up-effect">${this.effectText(u.id)}</div>
-            </div>
-            <button class="pixel-btn up-buy ${can ? 'can' : ''}" data-up="${u.id}" ${max ? 'disabled' : ''}>
-              ${max ? 'МАКС' : '💰' + cost}
-            </button>
-          </div>`;
-      })
-      .join('');
-
-    // Разделы с грядками
     const list = document.getElementById('upgradeList');
     const noSlots = this.plotSlots().length === 0;
     const regCost = this.nextRegularCost();
@@ -923,30 +915,57 @@ class PixelFarm {
             <button class="pixel-btn up-buy ${can ? 'can' : ''}" data-up="${id}" ${off ? 'disabled' : ''}>${label}</button>
           </div>`;
 
-    const noBuildSlots = this.plotSlots().length === 0;
-    const bCards = '<div class="shop-title">🏠 ПОСТРОЙКИ</div>' + Object.values(BUILDINGS).map((def) => {
-      const built = this.hasBuilding(def.id);
-      const locked = this.level < def.levelReq;
-      const off = built || locked || noBuildSlots;
-      const label = built ? 'ЕСТЬ' : locked ? `УР.${def.levelReq}` : '💰' + def.cost;
-      return card(def.icon, def.name, def.desc, built ? 'Построено' : `Открывается с ${def.levelReq} уровня`, 'b:' + def.id,
-        !off && this.coins >= def.cost, off, label);
-    }).join('');
-
-    list.insertAdjacentHTML('afterbegin',
+    // Вкладка «Грядки»
+    const canReg = !regMax && this.coins >= regCost;
+    const canGold = !goldMax && this.coins >= goldCost;
+    const plotsHtml =
       '<div class="shop-title">ГРЯДКИ</div>' +
       card('🟫', 'Новая грядка', 'Ставишь сам, рядом с уже имеющимися',
         `Обычных: ${this.regularCount()} из ${START_PLOTS.length + PLOT_COSTS.length}`,
-        'plot', !regMax && this.coins >= regCost, regMax, regMax ? 'МАКС' : '💰' + regCost) +
-      card('🔷', 'Улучшить грядку', 'Можно сажать тыкву и виноград',
-        `Улучшено: ${upgradedCount} из ${this.regularCount()}`,
-        'plotup', upLeft > 0 && this.coins >= upCost, upLeft === 0, upLeft === 0 ? 'МАКС' : '💰' + upCost) +
+        'plot', canReg, regMax, regMax ? 'МАКС' : '💰' + regCost) +
       '<div class="shop-title">⭐ ЗОЛОТЫЕ ГРЯДКИ</div>' +
       card('⭐', 'Золотая грядка', `Мифические плоды, сама сажает и собирает, +${bonusPct}% роста соседям`,
         `Золотых: ${this.goldenCount()} из ${GOLDEN_COSTS.length}`,
-        'golden', !goldMax && this.coins >= goldCost, goldMax, goldMax ? 'МАКС' : '💰' + goldCost) +
-      bCards +
-      '<div class="shop-title">УЛУЧШЕНИЯ</div>');
+        'golden', canGold, goldMax, goldMax ? 'МАКС' : '💰' + goldCost);
+
+    // Вкладка «Здания»
+    let canBld = false;
+    const bldHtml = Object.values(BUILDINGS).map((def) => {
+      const built = this.hasBuilding(def.id);
+      const locked = this.level < def.levelReq;
+      const off = built || locked || noSlots;
+      const can = !off && this.coins >= def.cost;
+      if (can) canBld = true;
+      const label = built ? 'ЕСТЬ' : locked ? `УР.${def.levelReq}` : '💰' + def.cost;
+      return card(def.icon, def.name, def.desc, built ? 'Построено' : `Открывается с ${def.levelReq} уровня`, 'b:' + def.id, can, off, label);
+    }).join('');
+
+    // Вкладка «Улучшения»
+    const canPlotUp = upLeft > 0 && this.coins >= upCost;
+    let canUps = canPlotUp;
+    const upsHtml =
+      '<div class="shop-title">ГРЯДКИ</div>' +
+      card('🔷', 'Улучшить грядку', 'Можно сажать тыкву и виноград',
+        `Улучшено: ${upgradedCount} из ${this.regularCount()}`,
+        'plotup', canPlotUp, upLeft === 0, upLeft === 0 ? 'МАКС' : '💰' + upCost) +
+      '<div class="shop-title">ХОЗЯЙСТВО</div>' +
+      Object.values(UPGRADES).map((u) => {
+        const lvl = this.upgrades[u.id];
+        const max = lvl >= u.maxLevel;
+        const cost = this.upgradeCost(u.id);
+        const can = !max && this.coins >= cost;
+        if (can) canUps = true;
+        return card(u.icon, u.name, u.description, `Уровень ${lvl} из ${u.maxLevel}<br>${this.effectText(u.id)}`,
+          u.id, can, max, max ? 'МАКС' : '💰' + cost);
+      }).join('');
+
+    // Вкладки с красной меткой, если на ней можно что-то купить
+    const marks = { plots: canReg || canGold, buildings: canBld, upgrades: canUps };
+    const tabs = [['plots', '🟫 Грядки'], ['buildings', '🏠 Здания'], ['upgrades', '⚡ Улучшения']];
+    const tabsHtml = '<div class="shop-tabs">' + tabs.map(([id, label]) =>
+      `<button class="shop-tab ${tab === id ? 'active' : ''} ${marks[id] ? 'alert' : ''}" data-tab="${id}">${label}</button>`).join('') + '</div>';
+
+    list.innerHTML = tabsHtml + { plots: plotsHtml, buildings: bldHtml, upgrades: upsHtml }[tab];
   }
 
   updateUI() {

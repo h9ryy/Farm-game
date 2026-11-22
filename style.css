@@ -424,3 +424,37 @@ html, body {
 @media (max-width: 600px) {
   .seed-btn { flex: 0 0 46px; }
 }
+
+
+.shop-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+
+.shop-tab {
+  flex: 1;
+  font-family: 'Press Start 2P', monospace, sans-serif;
+  font-size: 9px;
+  padding: 10px 4px;
+  border: 3px solid #7d5233;
+  background: #e6d3af;
+  color: #4a3525;
+  cursor: pointer;
+  position: relative;
+}
+
+.shop-tab.active { background: #ffb703; color: #4a2800; }
+
+.shop-tab.alert::after {
+  content: '!';
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  background: #ff4d4d;
+  color: #ffffff;
+  font-size: 9px;
+  padding: 3px 5px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+}
+
+@media (max-width: 600px) {
+  .shop-tab { font-size: 8px; padding: 9px 2px; }
+}
