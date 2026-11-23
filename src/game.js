@@ -1,7 +1,7 @@
 import { sound } from './audio.js';
 import { sdk } from './sdk.js';
 import { makeFruitSprite, FRUIT_SPRITE_IDS } from './sprites.js';
-import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
+import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, GOLDEN_MAX, GOLDEN_UPGRADE_BASE, GOLDEN_UPGRADE_MULT, PLOT_UPGRADE_BASE, PLOT_UPGRADE_MULT, NEIGHBOR_BONUS, GROW_SCALE, BUILDINGS, BUILDING_SETTINGS, UPGRADES } from './data.js';
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
@@ -202,9 +202,27 @@ class PixelFarm {
     return i >= 0 && i < PLOT_COSTS.length ? PLOT_COSTS[i] : null;
   }
 
+  // Золотые, купленные новой клеткой, и золотые, полученные улучшением синей грядки
+  boughtGoldenCount() {
+    return this.plots.filter((p) => p.premium && !p.conv).length;
+  }
+
+  convertedGoldenCount() {
+    return this.plots.filter((p) => p.premium && p.conv).length;
+  }
+
   nextGoldenCost() {
-    const i = this.goldenCount();
-    return i < GOLDEN_COSTS.length ? GOLDEN_COSTS[i] : null;
+    const i = this.boughtGoldenCount();
+    return i < GOLDEN_COSTS.length && this.goldenCount() < GOLDEN_MAX ? GOLDEN_COSTS[i] : null;
+  }
+
+  goldenUpgradeCost() {
+    return Math.round(GOLDEN_UPGRADE_BASE * Math.pow(GOLDEN_UPGRADE_MULT, this.convertedGoldenCount()));
+  }
+
+  // Золотой можно сделать только синюю (улучшенную) грядку
+  canMakeGolden(plot) {
+    return plot.upgraded && !plot.premium && this.goldenCount() < GOLDEN_MAX;
   }
 
   nextPlotCost(type) {
@@ -262,6 +280,47 @@ class PixelFarm {
   }
 
   // То же для улучшения грядок
+  // Улучшение синей грядки до золотой
+  startGolden() {
+    if (!this.plots.some((p) => this.canMakeGolden(p))) return;
+    if (this.coins < this.goldenUpgradeCost()) {
+      sound.playClick();
+      return;
+    }
+    sound.playClick();
+    this.closeShop();
+    this.upgrading = 'gold';
+    this.placing = false;
+    this.updateUI();
+    this.resize();
+  }
+
+  makeGolden(plot) {
+    const cost = this.goldenUpgradeCost();
+    if (!this.canMakeGolden(plot) || this.coins < cost) return;
+    this.coins -= cost;
+    plot.premium = true;
+    plot.conv = true;
+    this.stats.upgrades += 1;
+    this.keepGolden();
+    const { px, py } = this.plotPos(plot);
+    this.addFloatingText(px + this.tile / 2, py + this.tile / 2, 'ЗОЛОТАЯ ГРЯДКА!', '#ffd23f', 10);
+    this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
+    this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
+    this.buzz(40);
+    sound.playUnlock();
+    this.updateUI();
+    this.resize();
+    this.saveGame();
+  }
+
+  keepGolden() {
+    const left = this.plots.some((p) => this.canMakeGolden(p));
+    if (left && this.coins >= this.goldenUpgradeCost()) return;
+    this.upgrading = false;
+    if (left) this.addFloatingText(this.canvas.width / 2, this.canvas.height / 2, 'НЕТ МОНЕТ!', '#ff4d4d', 14);
+  }
+
   keepUpgrading() {
     const left = this.plots.some((p) => this.canUpgrade(p));
     if (left && this.coins >= this.plotUpgradeCost()) return;
@@ -485,7 +544,7 @@ class PixelFarm {
   }
 
   plotUpgradeCost() {
-    const n = this.plots.filter((p) => p.upgraded && !p.premium).length;
+    const n = this.plots.filter((p) => p.upgraded).length;
     return Math.round(PLOT_UPGRADE_BASE * Math.pow(PLOT_UPGRADE_MULT, n));
   }
 
@@ -497,7 +556,7 @@ class PixelFarm {
     }
     sound.playClick();
     this.closeShop();
-    this.upgrading = true;
+    this.upgrading = 'blue';
     this.placing = false;
     this.updateUI();
     this.resize();
@@ -619,7 +678,11 @@ class PixelFarm {
       }
       if (this.upgrading) {
         const h = getPlotAtPos(mx, my);
-        if (h && this.canUpgrade(h.plot)) this.upgradePlot(h.plot);
+        if (h && this.upgrading === 'gold') {
+          if (this.canMakeGolden(h.plot)) this.makeGolden(h.plot);
+        } else if (h && this.canUpgrade(h.plot)) {
+          this.upgradePlot(h.plot);
+        }
         return;
       }
       if (this.bee && Math.hypot(mx - this.bee.x, my - this.bee.y) < 36) {
@@ -899,6 +962,7 @@ class PixelFarm {
       if (id === 'plot') this.startPlacing('regular');
       else if (id === 'golden') this.startPlacing('golden');
       else if (id === 'plotup') this.startUpgrading();
+      else if (id === 'goldup') this.startGolden();
       else if (id.startsWith('b:')) this.startPlacingBuilding(id.slice(2));
       else this.buyUpgrade(id);
     });
@@ -923,7 +987,7 @@ class PixelFarm {
     const goldCost = this.nextGoldenCost();
     const goldMax = goldCost === null || noSlots;
     const upCost = this.plotUpgradeCost();
-    const upgradedCount = this.plots.filter((p) => p.upgraded && !p.premium).length;
+    const upgradedCount = this.plots.filter((p) => p.upgraded).length;
     const upLeft = this.plots.filter((p) => this.canUpgrade(p)).length;
     const bonusPct = Math.round(NEIGHBOR_BONUS * 100);
 
@@ -948,7 +1012,7 @@ class PixelFarm {
         'plot', canReg, regMax, regMax ? 'МАКС' : '💰' + regCost) +
       '<div class="shop-title">⭐ ЗОЛОТЫЕ ГРЯДКИ</div>' +
       card('⭐', 'Золотая грядка', `Мифические плоды, сама сажает и собирает, +${bonusPct}% роста соседям`,
-        `Золотых: ${this.goldenCount()} из ${GOLDEN_COSTS.length}`,
+        `Золотых: ${this.goldenCount()} из ${GOLDEN_MAX}`,
         'golden', canGold, goldMax, goldMax ? 'МАКС' : '💰' + goldCost);
 
     // Вкладка «Здания»
@@ -965,12 +1029,19 @@ class PixelFarm {
 
     // Вкладка «Улучшения»
     const canPlotUp = upLeft > 0 && this.coins >= upCost;
-    let canUps = canPlotUp;
+    const goldUpCost = this.goldenUpgradeCost();
+    const blueLeft = this.plots.filter((p) => this.canMakeGolden(p)).length;
+    const goldFull = this.goldenCount() >= GOLDEN_MAX;
+    const canGoldUp = blueLeft > 0 && this.coins >= goldUpCost;
+    let canUps = canPlotUp || canGoldUp;
     const upsHtml =
       '<div class="shop-title">ГРЯДКИ</div>' +
       card('🔷', 'Улучшить грядку', 'Можно сажать тыкву и виноград',
-        `Улучшено: ${upgradedCount} из ${this.regularCount()}`,
+        `Улучшено: ${upgradedCount} из ${this.plots.length - this.boughtGoldenCount()}`,
         'plotup', canPlotUp, upLeft === 0, upLeft === 0 ? 'МАКС' : '💰' + upCost) +
+      card('🌟', 'Улучшить до золотой', 'Синяя грядка становится золотой: сама сажает и собирает, мифические плоды',
+        `Золотых: ${this.goldenCount()} из ${GOLDEN_MAX}`,
+        'goldup', canGoldUp, blueLeft === 0, goldFull ? 'МАКС' : blueLeft === 0 ? 'НЕТ 🔷' : '💰' + goldUpCost) +
       '<div class="shop-title">ХОЗЯЙСТВО</div>' +
       Object.values(UPGRADES).map((u) => {
         const lvl = this.upgrades[u.id];
@@ -1040,7 +1111,8 @@ class PixelFarm {
     const gc = this.nextGoldenCost();
     const hasSlot = this.plotSlots().length > 0;
     const canBuyPlot = hasSlot && ((rc !== null && this.coins >= rc) || (gc !== null && this.coins >= gc));
-    const canUpPlot = this.plots.some((p) => this.canUpgrade(p)) && this.coins >= this.plotUpgradeCost();
+    const canUpPlot = (this.plots.some((p) => this.canUpgrade(p)) && this.coins >= this.plotUpgradeCost()) ||
+      (this.plots.some((p) => this.canMakeGolden(p)) && this.coins >= this.goldenUpgradeCost());
     const canBuyBld = this.plotSlots().length > 0 && Object.values(BUILDINGS).some((d) => !this.hasBuilding(d.id) && this.level >= d.levelReq && this.coins >= d.cost);
     document.getElementById('shopBtn').classList.toggle('alert', canBuy || canBuyPlot || canUpPlot || canBuyBld);
 
@@ -1053,6 +1125,8 @@ class PixelFarm {
       const c = this.nextPlotCost(this.placing);
       const what = this.placing === 'golden' ? '⭐ золотой грядки' : 'грядки';
       document.getElementById('placeText').textContent = `Выбери место для ${what} (💰${c})`;
+    } else if (this.upgrading === 'gold') {
+      document.getElementById('placeText').textContent = `Выбери синюю грядку для золота (💰${this.goldenUpgradeCost()})`;
     } else if (this.upgrading) {
       document.getElementById('placeText').textContent = `Выбери грядку для улучшения (💰${this.plotUpgradeCost()})`;
     }
@@ -1083,6 +1157,7 @@ class PixelFarm {
         plantedAt: p.plantedAt,
         premium: p.premium,
         upgraded: p.upgraded,
+        conv: p.conv,
         lastCrop: p.lastCrop,
       })),
     });
@@ -1152,7 +1227,7 @@ class PixelFarm {
           }
           if (!(x >= 0 && x < GRID && y >= 0 && y < GRID)) return;
           if (loaded.some((l) => l.x === x && l.y === y)) return;
-          const p = { x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: !!sp.premium, upgraded: !!sp.upgraded, lastCrop: CROPS[sp.lastCrop] ? sp.lastCrop : null };
+          const p = { x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: !!sp.premium, upgraded: !!sp.upgraded, conv: !!sp.conv, lastCrop: CROPS[sp.lastCrop] ? sp.lastCrop : null };
           if (sp.state !== 'empty' && CROPS[sp.crop]) {
             p.state = sp.state;
             p.crop = sp.crop;
@@ -1572,8 +1647,9 @@ class PixelFarm {
         ctx.fillStyle = '#7bed9f';
         ctx.fillText('▲', S - 13, 14);
       }
-      if (this.upgrading && !plot.upgraded) {
-        ctx.strokeStyle = `rgba(159, 211, 255, ${0.5 + 0.5 * Math.sin(now / 250)})`;
+      if (this.upgrading && (this.upgrading === 'gold' ? this.canMakeGolden(plot) : !plot.upgraded)) {
+        const rgb = this.upgrading === 'gold' ? '255, 210, 63' : '159, 211, 255';
+        ctx.strokeStyle = `rgba(${rgb}, ${0.5 + 0.5 * Math.sin(now / 250)})`;
         ctx.lineWidth = 4;
         ctx.strokeRect(2, 2, S - 4, S - 4);
       }
