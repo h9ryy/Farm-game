@@ -13,21 +13,33 @@ const SAVE_VERSION = 3;
 const GROW_TAP_MAX = 2; // сколько раз за один рост тап по ростку приносит монету
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
 
-// Быстрые цели. stat — что считаем (накопительно за всё время), target — сколько нужно, reward — монеты
+// Быстрые цели идут по порядку. stat: harvested, earned, upgrades, plots (накопительно за всё время)
+// или текущее состояние: level, buildings, golden, barn, late. target: сколько нужно, reward: монеты.
 const QUESTS = [
-  { stat: 'harvested', target: 10, reward: 20, text: 'Собери 10 урожаев' },
-  { stat: 'earned', target: 100, reward: 30, text: 'Заработай 100 монет' },
-  { stat: 'plots', target: 1, reward: 40, text: 'Купи 1 грядку' },
-  { stat: 'harvested', target: 30, reward: 60, text: 'Собери 30 урожаев' },
-  { stat: 'upgrades', target: 1, reward: 80, text: 'Купи улучшение' },
-  { stat: 'earned', target: 600, reward: 120, text: 'Заработай 600 монет' },
-  { stat: 'harvested', target: 80, reward: 200, text: 'Собери 80 урожаев' },
-  { stat: 'plots', target: 4, reward: 250, text: 'Купи 4 грядки' },
-  { stat: 'earned', target: 3000, reward: 500, text: 'Заработай 3000 монет' },
-  { stat: 'harvested', target: 200, reward: 800, text: 'Собери 200 урожаев' },
-  { stat: 'upgrades', target: 6, reward: 1200, text: 'Купи 6 улучшений' },
-  { stat: 'earned', target: 20000, reward: 3000, text: 'Заработай 20000 монет' },
+  { stat: 'plots', target: 1, reward: 150, text: 'Купи 1 грядку' },
+  { stat: 'harvested', target: 30, reward: 200, text: 'Собери 30 урожаев' },
+  { stat: 'earned', target: 500, reward: 300, text: 'Заработай 500 монет' },
+  { stat: 'plots', target: 3, reward: 500, text: 'Купи 3 грядки' },
+  { stat: 'upgrades', target: 1, reward: 400, text: 'Купи первое улучшение' },
+  { stat: 'harvested', target: 100, reward: 800, text: 'Собери 100 урожаев' },
+  { stat: 'earned', target: 3000, reward: 1200, text: 'Заработай 3000 монет' },
+  { stat: 'plots', target: 6, reward: 2000, text: 'Купи 6 грядок' },
+  { stat: 'buildings', target: 1, reward: 2500, text: 'Построй первое здание' },
+  { stat: 'level', target: 6, reward: 4000, text: 'Достигни 6 уровня' },
+  { stat: 'harvested', target: 250, reward: 5000, text: 'Собери 250 урожаев' },
+  { stat: 'earned', target: 25000, reward: 8000, text: 'Заработай 25000 монет' },
+  { stat: 'upgrades', target: 5, reward: 12000, text: 'Купи 5 улучшений' },
+  { stat: 'plots', target: 12, reward: 18000, text: 'Купи 12 грядок' },
+  { stat: 'level', target: 9, reward: 35000, text: 'Достигни 9 уровня' },
+  { stat: 'earned', target: 250000, reward: 60000, text: 'Заработай 250 тысяч монет' },
+  { stat: 'buildings', target: 3, reward: 100000, text: 'Построй 3 здания' },
+  { stat: 'golden', target: 1, reward: 250000, text: 'Получи золотую грядку' },
+  { stat: 'earned', target: 3000000, reward: 500000, text: 'Заработай 3 млн монет' },
+  { stat: 'barn', target: 1, reward: 1000000, text: 'Построй амбар' },
+  { stat: 'earned', target: 20000000, reward: 3000000, text: 'Заработай 20 млн монет' },
+  { stat: 'late', target: 1, reward: 5000000, text: 'Построй замок, фонтан или колесо' },
 ];
+
 
 class PixelFarm {
   constructor() {
@@ -1176,11 +1188,11 @@ class PixelFarm {
 
     // Быстрая цель
     const q = this.questAt(this.questIndex);
-    const have = Math.min(this.stats[q.stat], q.target);
+    const have = Math.min(this.questProgress(q), q.target);
     document.getElementById('questText').textContent = q.text;
-    document.getElementById('questReward').textContent = `+💰${q.reward}`;
+    document.getElementById('questReward').textContent = `+💰${this.fmtNum(q.reward)}`;
     document.getElementById('questFill').style.width = `${Math.round((have / q.target) * 100)}%`;
-    document.getElementById('questCount').textContent = `${have}/${q.target}`;
+    document.getElementById('questCount').textContent = `${this.fmtNum(have)}/${this.fmtNum(q.target)}`;
 
     // Панель семян
     document.querySelectorAll('.seed-btn').forEach((btn) => {
@@ -1346,18 +1358,38 @@ class PixelFarm {
   }
 
   // ---------- ЦЕЛИ, ОКНА, ЭФФЕКТЫ ЭТАПА 4 ----------
+  // Сколько уже выполнено по цели
+  questProgress(q) {
+    switch (q.stat) {
+      case 'level': return this.level;
+      case 'buildings': return this.buildings.length;
+      case 'golden': return this.goldenCount();
+      case 'barn': return this.hasBuilding('barn') ? 1 : 0;
+      case 'late': return ['castle', 'fountain', 'wheel'].filter((id) => this.hasBuilding(id)).length;
+      default: return this.stats[q.stat] || 0;
+    }
+  }
+
+  // Короткая запись больших чисел: 12.5K, 3M
+  fmtNum(n) {
+    if (n >= 1000000) return `${+(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${+(n / 1000).toFixed(1)}K`;
+    return `${n}`;
+  }
+
   questAt(i) {
     if (i < QUESTS.length) return QUESTS[i];
+    // Дальше бесконечно: «Заработай N монет», N каждый раз вдвое больше, награда 6% от N
     const n = i - QUESTS.length + 1;
-    const target = 200 + 150 * n;
-    return { stat: 'harvested', target, reward: 1500 * n, text: `Собери ${target} урожаев` };
+    const target = 20000000 * Math.pow(2, n);
+    return { stat: 'earned', target, reward: Math.round(target * 0.06), text: `Заработай ${this.fmtNum(target)} монет` };
   }
 
   checkQuests() {
     let guard = 0;
     while (guard++ < 10) {
       const q = this.questAt(this.questIndex);
-      if (this.stats[q.stat] < q.target) break;
+      if (this.questProgress(q) < q.target) break;
       this.questIndex += 1;
       this.coins += q.reward;
       sound.playUnlock();
@@ -1365,7 +1397,7 @@ class PixelFarm {
       const cx = this.canvas.width / 2;
       const cy = this.canvas.height / 2;
       this.addFloatingText(cx, cy - 60, 'ЗАДАНИЕ ВЫПОЛНЕНО!', '#ffde59', 14);
-      this.addFloatingText(cx, cy - 36, `+💰${q.reward}`, '#7bed9f', 14);
+      this.addFloatingText(cx, cy - 36, `+💰${this.fmtNum(q.reward)}`, '#7bed9f', 14);
       this.flyItem(cx, cy - 40, '💰', 'coinsVal', 8);
     }
   }
