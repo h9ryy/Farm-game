@@ -144,6 +144,17 @@ class PixelFarm {
     return this.buildings.some((b) => b.id === id);
   }
 
+  // Колесо обозрения: пока идёт бонус, каждый сбор даёт урожай ×2
+  wheelActive() {
+    const w = this.getBuilding('wheel');
+    return !!w && w.boost > 0;
+  }
+
+  // Сундук замка: несколько секунд дохода, но не меньше трёх пшениц
+  chestValue() {
+    return Math.max(3 * this.priceOf(CROPS.wheat), Math.round(this.incomePerSec() * BUILDING_SETTINGS.castleSeconds));
+  }
+
   getBuilding(id) {
     return this.buildings.find((b) => b.id === id) || null;
   }
@@ -380,6 +391,8 @@ class PixelFarm {
       b.goldenDone = false;
     }
     if (id === 'shop') b.orders = [];
+    if (id === 'castle') b.chest = false;
+    if (id === 'fountain' || id === 'wheel') b.boost = 0;
     this.buildings.push(b);
     this.placing = false;
     const { px, py } = this.plotPos({ x, y });
@@ -407,6 +420,24 @@ class PixelFarm {
   onBuildingClick(b, cx, cy) {
     sound.ensureContext();
     const def = BUILDINGS[b.id];
+    if (b.id === 'castle') {
+      if (b.chest) {
+        const reward = this.chestValue();
+        b.chest = false;
+        this.coins += reward;
+        this.stats.earned += reward;
+        sound.playSell();
+        this.buzz(25);
+        this.addFloatingText(cx, cy, `СУНДУК! +💰${reward}`, '#ffde59', 11);
+        this.spawnHarvestParticles(cx, cy);
+        this.flyItem(cx, cy, '💰', 'coinsVal', 6);
+        this.updateUI();
+      } else {
+        sound.playClick();
+        this.addFloatingText(cx, cy, 'СУНДУК СКОРО', '#ffffff', 10);
+      }
+      return;
+    }
     if (b.id === 'coop') {
       if (b.eggs > 0) {
         const golden = b.goldenReady;
@@ -488,9 +519,69 @@ class PixelFarm {
     this.updateUI();
   }
 
+  // Здания позднего этапа: замок, фонтан, колесо обозрения
+  updateLateBuildings(step) {
+    const S = BUILDING_SETTINGS;
+    this.buildings.forEach((b) => {
+      const { px, py } = this.plotPos(b);
+      const cx = px + this.tile / 2;
+      const cy = py + this.tile / 2;
+      if (b.id === 'castle') {
+        if (!b.chest) {
+          b.t += step;
+          if (b.t >= S.castleInterval) {
+            b.t = 0;
+            b.chest = true;
+            sound.playTone(880, 'triangle', 0.08, 0.08);
+          }
+        }
+      } else if (b.id === 'fountain') {
+        if (b.boost > 0) {
+          // пока фонтан работает, растущие культуры «прибавляют» время
+          this.plots.forEach((p) => {
+            if (p.state === 'growing') p.plantedAt -= step * (S.fountainMult - 1) * 1000;
+          });
+          b.boost -= step;
+          if (b.boost <= 0) {
+            b.boost = 0;
+            b.t = 0;
+          }
+        } else {
+          b.t += step;
+          if (b.t >= S.fountainInterval) {
+            b.t = 0;
+            b.boost = S.fountainDuration;
+            sound.playTone(660, 'sine', 0.12, 0.08);
+            this.addFloatingText(cx, cy - 20, `РОСТ ×${S.fountainMult}!`, '#9fd3ff', 12);
+            this.spawnHarvestParticles(cx, cy);
+          }
+        }
+      } else if (b.id === 'wheel') {
+        if (b.boost > 0) {
+          b.boost -= step;
+          if (b.boost <= 0) {
+            b.boost = 0;
+            b.t = 0;
+          }
+        } else {
+          b.t += step;
+          if (b.t >= S.wheelInterval) {
+            b.t = 0;
+            b.boost = S.wheelDuration;
+            sound.playUnlock();
+            this.buzz(30);
+            this.addFloatingText(cx, cy - 20, `УРОЖАЙ ×${S.wheelMult}!`, '#ffd23f', 12);
+            for (let i = 0; i < 3; i++) this.spawnHarvestParticles(cx, cy);
+          }
+        }
+      }
+    });
+  }
+
   updateBuildings(dt) {
     const S = BUILDING_SETTINGS;
     const step = Math.min(dt, 1);
+    this.updateLateBuildings(step);
     this.buildings.forEach((b) => {
       if (b.id === 'coop') {
         if (b.eggs < S.eggMax) {
@@ -799,7 +890,7 @@ class PixelFarm {
     plot.plantedAt = 0;
     plot.ripeAt = 0;
     const golden = this.hasBuilding('scarecrow') && Math.random() < BUILDING_SETTINGS.goldenChance;
-    const amount = golden ? 5 : 1;
+    const amount = (golden ? 5 : 1) * (this.wheelActive() ? BUILDING_SETTINGS.wheelMult : 1);
     this.inventory[crop.id] += amount;
     this.stats.harvested += 1;
     this.xp += this.xpOf(crop);
@@ -814,7 +905,7 @@ class PixelFarm {
       this.spawnHarvestParticles(cx, cy);
     }
 
-    this.flyItem(cx, cy, crop.icon, 'cropCountVal', golden ? 5 : 1);
+    this.flyItem(cx, cy, crop.icon, 'cropCountVal', Math.min(amount, 5));
     if (golden) {
       sound.playUnlock();
       this.buzz(40);
@@ -1204,6 +1295,8 @@ class PixelFarm {
             b.goldenReady = !!sb.goldenReady;
             b.goldenDone = !!sb.goldenDone;
           }
+          if (sb.id === 'castle') b.chest = !!sb.chest;
+          if (sb.id === 'fountain' || sb.id === 'wheel') b.boost = 0;
           if (sb.id === 'shop') {
             b.orders = Array.isArray(sb.orders) ? sb.orders.filter((o) => CROPS[o.crop]).slice(0, BUILDING_SETTINGS.orderMax) : [];
           }
@@ -1770,6 +1863,15 @@ class PixelFarm {
       if (!this.bee) bar(b.t / SET.beeInterval, '#ffd23f');
     } else if (b.id === 'barn') {
       bar(b.t / SET.barnInterval, '#7bed9f');
+    } else if (b.id === 'castle') {
+      if (b.chest) pill('🎁 ТАП', '#2ed573');
+      else bar(b.t / SET.castleInterval, '#ffd23f');
+    } else if (b.id === 'fountain') {
+      if (b.boost > 0) pill(`×${SET.fountainMult} ${Math.ceil(b.boost)}с`, '#2d98da');
+      else bar(b.t / SET.fountainInterval, '#74b9ff');
+    } else if (b.id === 'wheel') {
+      if (b.boost > 0) pill(`×${SET.wheelMult} ${Math.ceil(b.boost)}с`, '#d4a017');
+      else bar(b.t / SET.wheelInterval, '#ff9ff3');
     } else if (b.id === 'scarecrow') {
       pill(`×5 ${Math.round(SET.goldenChance * 100)}%`, '#8c6239');
     }
