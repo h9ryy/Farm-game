@@ -503,7 +503,7 @@ class PixelFarm {
   }
 
   spawnBee() {
-    this.bee = { t: 0, dur: 7, x: -30, y: 0, y0: this.gridY + Math.random() * GRID * this.tile };
+    this.bee = { t: 0, dur: 7, x: -30, y: 0, y0: this.gridY + Math.random() * this.boxRows * (this.tile + this.gap) };
   }
 
   tapBee() {
@@ -702,7 +702,7 @@ class PixelFarm {
     this.buildSeedBar();
     this.setupUI();
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => this.resize(true));
     this.setupInputs();
 
     // Сброс прогресса: открой игру с адресом вида http://127.0.0.1:5500/?reset
@@ -723,32 +723,78 @@ class PixelFarm {
   }
 
   // ---------- РАЗМЕРЫ ----------
-  resize() {
+  // Поле подгоняется под то, что построено: мало грядок = крупно, много = мельче.
+  // snap = true: сразу, без плавного перехода (старт, поворот экрана).
+  resize(snap = false) {
     const wrap = this.canvas.parentElement;
-    this.canvas.width = wrap.clientWidth;
-    this.canvas.height = wrap.clientHeight;
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    if (this.canvas.width !== w || this.canvas.height !== h) snap = true;
+    this.canvas.width = w;
+    this.canvas.height = h;
     this.ctx.imageSmoothingEnabled = false;
 
     const top = document.querySelector('.hud-top').offsetHeight + 28;
     const bottom = document.querySelector('.hud-bottom').offsetHeight + 28;
-    const availW = this.canvas.width - 24;
-    const availH = this.canvas.height - top - bottom;
+    const availW = w - 24;
+    const availH = h - top - bottom;
 
+    // Рамка вокруг всех грядок и зданий (в режиме «поставь» ещё и вокруг свободных клеток)
+    const cells = [...this.plots, ...this.buildings];
+    if (this.placing) cells.push(...this.plotSlots());
+    const xs = cells.map((c) => c.x);
+    const ys = cells.map((c) => c.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const cols = Math.max(...xs) - minX + 1;
+    const rows = Math.max(...ys) - minY + 1;
+
+    // Меньше 3x3 не считаем, чтобы в самом начале грядки не были гигантскими
+    const fc = Math.max(cols, 3);
+    const fr = Math.max(rows, 3);
     const gapRatio = 0.12;
-    const units = GRID + (GRID - 1) * gapRatio;
-    const fit = Math.floor(Math.min(availW / units, availH / units));
-    this.tile = Math.max(40, Math.min(fit, 120));
-    this.gap = Math.round(this.tile * gapRatio);
+    const fit = Math.floor(Math.min(availW / (fc + (fc - 1) * gapRatio), availH / (fr + (fr - 1) * gapRatio)));
+    const tile = Math.max(40, Math.min(fit, 170));
+    const gap = Math.round(tile * gapRatio);
+    const totalW = cols * tile + (cols - 1) * gap;
+    const totalH = rows * tile + (rows - 1) * gap;
+    const gx = Math.round((w - totalW) / 2);
+    const gy = Math.round(top + (availH - totalH) / 2);
 
-    const total = GRID * this.tile + (GRID - 1) * this.gap;
-    this.gridX = Math.round((this.canvas.width - total) / 2);
-    this.gridY = Math.round(top + (availH - total) / 2);
+    // Если рамка сдвинулась (грядка слева или сверху), сохраняем текущее положение клеток на экране
+    if (this.tile !== undefined && this.minX !== undefined && !snap) {
+      this.gridX += (minX - this.minX) * (this.tile + this.gap);
+      this.gridY += (minY - this.minY) * (this.tile + this.gap);
+    }
+    this.minX = minX;
+    this.minY = minY;
+    this.boxRows = rows;
+    this.target = { tile, gridX: gx, gridY: gy };
+
+    if (snap || this.tile === undefined) {
+      this.tile = tile;
+      this.gap = gap;
+      this.gridX = gx;
+      this.gridY = gy;
+    }
+  }
+
+  // Плавно подтягиваем размер и положение поля к нужным
+  animateView(dt) {
+    const t = this.target;
+    if (!t) return;
+    const k = 1 - Math.exp(-Math.min(dt, 0.1) * 10);
+    const move = (cur, to) => (Math.abs(to - cur) < 0.5 ? to : cur + (to - cur) * k);
+    this.tile = move(this.tile, t.tile);
+    this.gridX = move(this.gridX, t.gridX);
+    this.gridY = move(this.gridY, t.gridY);
+    this.gap = Math.round(this.tile * 0.12);
   }
 
   plotPos(plot) {
     return {
-      px: this.gridX + plot.x * (this.tile + this.gap),
-      py: this.gridY + plot.y * (this.tile + this.gap),
+      px: this.gridX + (plot.x - this.minX) * (this.tile + this.gap),
+      py: this.gridY + (plot.y - this.minY) * (this.tile + this.gap),
     };
   }
 
@@ -1354,7 +1400,7 @@ class PixelFarm {
     }
 
     this.updateUI();
-    this.resize();
+    this.resize(true);
   }
 
   // ---------- ЦЕЛИ, ОКНА, ЭФФЕКТЫ ЭТАПА 4 ----------
@@ -1552,6 +1598,7 @@ class PixelFarm {
   }
 
   update(dt) {
+    this.animateView(dt);
     const now = Date.now();
     const delay = this.autoDelay();
     this.updateBuildings(dt);
