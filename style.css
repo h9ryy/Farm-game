@@ -492,3 +492,30 @@ html, body {
   from { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 4px #ff7a1a; }
   to { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 16px #ffd23f; }
 }
+
+/* ---------- НАСТРОЙКИ ---------- */
+.settings-card { text-align: center; max-width: 380px; }
+
+.settings-row {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 14px;
+  font-size: 11px;
+}
+
+.settings-sound { background: #2ed573; color: #ffffff; }
+.settings-danger { background: #ff6b6b; color: #ffffff; }
+
+.reset-confirm {
+  margin-top: 4px;
+  padding: 12px;
+  border: 3px solid #7d5233;
+  background: #ffffff;
+  font-size: 9px;
+  line-height: 1.8;
+  color: #4a3525;
+}
+
+.reset-row { display: flex; gap: 8px; margin-top: 12px; }
+.reset-row .pixel-btn { flex: 1; font-size: 9px; padding: 10px 4px; }

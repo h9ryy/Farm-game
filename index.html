@@ -27,6 +27,7 @@
         <div class="xp-bar"><div id="xpFill"></div></div>
       </div>
       <button id="shopBtn" class="pixel-btn shop-btn">🛒</button>
+      <button id="settingsBtn" class="pixel-btn shop-btn">⚙️</button>
       <button id="sellBtn" class="pixel-btn sell-btn">💰 ПРОДАТЬ</button>
       <div class="quest-box">
         <div class="quest-top">
@@ -66,6 +67,25 @@
         <button id="shopClose" class="pixel-btn close-btn">✕</button>
       </div>
       <div id="upgradeList"></div>
+    </div>
+  </div>
+
+  <!-- Настройки -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card settings-card">
+      <div class="modal-head">
+        <span class="modal-title">НАСТРОЙКИ</span>
+        <button id="settingsClose" class="pixel-btn close-btn">✕</button>
+      </div>
+      <button id="soundBtn" class="pixel-btn settings-row settings-sound">🔊 ЗВУК: ВКЛ</button>
+      <button id="resetBtn" class="pixel-btn settings-row settings-danger">🗑 НАЧАТЬ ЗАНОВО</button>
+      <div id="resetConfirm" class="reset-confirm" style="display:none">
+        Весь прогресс будет удалён. Это нельзя отменить. Начать игру заново?
+        <div class="reset-row">
+          <button id="resetYes" class="pixel-btn settings-danger">ДА, УДАЛИТЬ</button>
+          <button id="resetNo" class="pixel-btn settings-sound">ОТМЕНА</button>
+        </div>
+      </div>
     </div>
   </div>
 

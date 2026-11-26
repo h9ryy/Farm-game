@@ -1092,6 +1092,41 @@ class PixelFarm {
     const closeShop = () => modal.classList.add('hidden');
 
     document.getElementById('shopBtn').addEventListener('click', openShop);
+
+    // Настройки: звук и сброс прогресса
+    const settings = document.getElementById('settingsModal');
+    const confirmBox = document.getElementById('resetConfirm');
+    const soundBtn = document.getElementById('soundBtn');
+    try { sound.muted = localStorage.getItem('pixel_farm_muted') === '1'; } catch (e) {}
+    const showSound = () => {
+      soundBtn.textContent = sound.muted ? '🔇 ЗВУК: ВЫКЛ' : '🔊 ЗВУК: ВКЛ';
+    };
+    showSound();
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      sound.ensureContext();
+      sound.playClick();
+      confirmBox.style.display = 'none';
+      settings.classList.remove('hidden');
+    });
+    document.getElementById('settingsClose').addEventListener('click', () => settings.classList.add('hidden'));
+    settings.addEventListener('click', (e) => {
+      if (e.target === settings) settings.classList.add('hidden');
+    });
+    soundBtn.addEventListener('click', () => {
+      sound.toggleMute();
+      showSound();
+      sound.playClick();
+      try { localStorage.setItem('pixel_farm_muted', sound.muted ? '1' : '0'); } catch (e) {}
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      sound.playClick();
+      confirmBox.style.display = '';
+    });
+    document.getElementById('resetNo').addEventListener('click', () => {
+      sound.playClick();
+      confirmBox.style.display = 'none';
+    });
+    document.getElementById('resetYes').addEventListener('click', () => this.resetProgress());
     document.getElementById('shopClose').addEventListener('click', closeShop);
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeShop();
@@ -1283,7 +1318,16 @@ class PixelFarm {
   }
 
   // ---------- СОХРАНЕНИЕ ----------
+  // Полный сброс: затираем сохранение (и локальное, и облачное) и перезагружаем игру
+  async resetProgress() {
+    this.resetting = true; // останавливаем автосохранение, чтобы оно не вернуло прогресс
+    await sdk.saveData({ v: 0 });
+    try { localStorage.removeItem('pixel_farm_save'); } catch (e) {}
+    window.location.reload();
+  }
+
   saveGame() {
+    if (this.resetting) return;
     sdk.saveData({
       v: SAVE_VERSION,
       coins: this.coins,

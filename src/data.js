@@ -259,7 +259,7 @@ export const BUILDINGS = {
     name: 'Замок',
     icon: '🏰',
     cost: 15000000,
-    levelReq: 11,
+    levelReq: 13,
     desc: 'Раз в минуту появляется сундук: тапни по замку и получи монеты',
   },
   fountain: {
@@ -267,7 +267,7 @@ export const BUILDINGS = {
     name: 'Фонтан',
     icon: '⛲',
     cost: 30000000,
-    levelReq: 11,
+    levelReq: 14,
     desc: 'Каждые 45 секунд включается на 10 секунд: рост культур ×2,5',
   },
   wheel: {
@@ -275,7 +275,7 @@ export const BUILDINGS = {
     name: 'Колесо',
     icon: '🎡',
     cost: 50000000,
-    levelReq: 11,
+    levelReq: 15,
     desc: 'Раз в минуту салют: 20 секунд каждый сбор даёт урожай ×2',
   },
 };
