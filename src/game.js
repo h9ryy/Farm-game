@@ -41,6 +41,33 @@ const QUESTS = [
 ];
 
 
+// Детерминированный генератор случайных чисел: фон каждый раз рисуется одинаково
+function mulberry32(a) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Как выглядит растущая культура: kind задаёт форму, цвета свои у каждой
+const GROWTH = {
+  wheat: { kind: 'stalk', leaf: '#52b788', dark: '#2d6a4f', fruit: '#f6e05e' },
+  carrot: { kind: 'root', leaf: '#4cc25c', dark: '#2d8a3a', fruit: '#f08a1c' },
+  tomato: { kind: 'bush', leaf: '#4cae4f', dark: '#2d7a38', fruit: '#e74c3c' },
+  corn: { kind: 'tall', leaf: '#6fcf5a', dark: '#3f9a3a', fruit: '#f1c40f' },
+  strawberry: { kind: 'low', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff4757' },
+  watermelon: { kind: 'vine', leaf: '#2f9e44', dark: '#1f6b30', fruit: '#3ec96b', stripe: '#1f8a3f', light: '#9af5b3' },
+  pumpkin: { kind: 'vine', leaf: '#4cae4f', dark: '#2d7a38', fruit: '#f08a1c', stripe: '#c4640f', light: '#ffc266' },
+  grapes: { kind: 'grape', leaf: '#5fb85a', dark: '#2f7a38', fruit: '#8e44ad', light: '#c58be0' },
+  apple: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#f2b600' },
+  peach: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff8fa0' },
+  dragon: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#e0267a' },
+  phoenix: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff7a1a' },
+};
+
 class PixelFarm {
   constructor() {
     this.canvas = document.getElementById('farmCanvas');
@@ -753,7 +780,7 @@ class PixelFarm {
     const fc = Math.max(cols, 3);
     const fr = Math.max(rows, 3);
     const gapRatio = 0.12;
-    const fit = Math.floor(Math.min(availW / (fc + (fc - 1) * gapRatio), availH / (fr + (fr - 1) * gapRatio)));
+    const fit = Math.floor(Math.min(availW / (fc + (fc - 1) * gapRatio + 0.8), availH / (fr + (fr - 1) * gapRatio + 0.8)));
     const tile = Math.max(40, Math.min(fit, 170));
     const gap = Math.round(tile * gapRatio);
     const totalW = cols * tile + (cols - 1) * gap;
@@ -769,6 +796,27 @@ class PixelFarm {
     this.minX = minX;
     this.minY = minY;
     this.boxRows = rows;
+
+    // Рамка только по грядкам и зданиям (для забора и вспаханной земли)
+    const fcells = [...this.plots, ...this.buildings];
+    const fxs = fcells.map((c) => c.x);
+    const fys = fcells.map((c) => c.y);
+    this.farmBox = {
+      minX: Math.min(...fxs),
+      minY: Math.min(...fys),
+      cols: Math.max(...fxs) - Math.min(...fxs) + 1,
+      rows: Math.max(...fys) - Math.min(...fys) + 1,
+    };
+
+    // Фон рисуем один раз и запоминаем; пересобираем только при смене размеров
+    const horizon = Math.round(Math.max(110, top + 80));
+    const key = `${w}x${h}x${horizon}`;
+    if (key !== this.sceneryKey) {
+      this.sceneryKey = key;
+      this.horizon = horizon;
+      this.skyTop = top;
+      this.buildScenery();
+    }
     this.target = { tile, gridX: gx, gridY: gy };
 
     if (snap || this.tile === undefined) {
@@ -1710,6 +1758,7 @@ class PixelFarm {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.drawBackground();
+    this.drawFarmland();
 
     const k = this.tile / BASE;
     this.plots.forEach((plot) => {
@@ -1775,41 +1824,307 @@ class PixelFarm {
     });
   }
 
+  // ---------- ФОН ----------
+  // Небо, холмы, трава, деревья, пруд. Рисуется один раз в отдельный холст.
+  buildScenery() {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const hz = this.horizon;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const rnd = mulberry32(1337);
+    const R = (x, y, w, h, col) => {
+      g.fillStyle = col;
+      g.fillRect(Math.round(x), Math.round(y), w, h);
+    };
+    const blob = (x, y, rx, ry, col) => {
+      for (let yy = -ry; yy <= ry; yy += 4) {
+        const half = Math.round((rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry)))) / 4) * 4;
+        if (half > 0) R(x - half, y + yy, half * 2, 4, col);
+      }
+    };
+
+    // Небо полосами и два слоя дальних холмов
+    const sky = ['#86cdfa', '#98d6fc', '#abdffd', '#bde8fe', '#cff0ff'];
+    const bh = Math.ceil(hz / sky.length);
+    sky.forEach((col, i) => R(0, i * bh, W, bh + 1, col));
+    for (let x = 0; x < W; x += 4) {
+      const y1 = hz - 34 + Math.sin(x / 110) * 12 + Math.sin(x / 41) * 4;
+      R(x, y1, 4, hz + 40 - y1, '#9ad98f');
+      const y2 = hz - 14 + Math.sin(x / 70 + 2) * 9 + Math.sin(x / 29) * 3;
+      R(x, y2, 4, hz + 40 - y2, '#7fc678');
+    }
+
+    // Трава: светлые и тёмные пятна, пучки, цветы
+    R(0, hz + 4, W, H - hz - 4, '#6eb767');
+    const area = (W * (H - hz)) / 10000;
+    for (let i = 0; i < area / 3; i++) {
+      blob(rnd() * W, hz + 10 + rnd() * (H - hz), 20 + rnd() * 50, 8 + rnd() * 18, rnd() < 0.5 ? '#78c271' : '#64ab5d');
+    }
+    for (let i = 0; i < area * 1.2; i++) {
+      const x = rnd() * W;
+      const y = hz + 14 + rnd() * (H - hz - 14);
+      R(x, y, 2, 5, '#4f9a4a');
+      R(x - 3, y + 2, 2, 3, '#4f9a4a');
+      R(x + 3, y + 1, 2, 4, '#4f9a4a');
+      R(x + 1, y, 1, 2, '#8fd68a');
+    }
+    const petals = ['#ffffff', '#ffd166', '#ff8fa3', '#9fd3ff', '#ff6b6b', '#c59bff'];
+    for (let i = 0; i < area * 0.8; i++) {
+      const x = Math.round(rnd() * W);
+      const y = Math.round(hz + 16 + rnd() * (H - hz - 24));
+      const col = petals[Math.floor(rnd() * petals.length)];
+      R(x, y + 4, 1, 3, '#3f8f45');
+      R(x - 2, y, 2, 2, col);
+      R(x + 2, y, 2, 2, col);
+      R(x, y - 2, 2, 2, col);
+      R(x, y + 2, 2, 2, col);
+      R(x, y, 2, 2, '#ffd166');
+    }
+
+    // Пруд сбоку
+    const pondX = W * (rnd() < 0.5 ? 0.12 : 0.88);
+    const pondY = hz + (H - hz) * 0.5;
+    const prx = Math.max(48, Math.min(W * 0.07, 120));
+    const pry = Math.round(prx * 0.55);
+    blob(pondX, pondY, prx + 10, pry + 8, '#cdb883');
+    blob(pondX, pondY, prx, pry, '#3f97e0');
+    blob(pondX - 6, pondY - 4, prx * 0.7, pry * 0.6, '#5db5f5');
+    blob(pondX - prx * 0.25, pondY - pry * 0.3, prx * 0.3, pry * 0.25, '#8fd0ff');
+    R(pondX + prx * 0.3, pondY + 4, 10, 4, '#3f8f45');
+    R(pondX + prx * 0.3 + 2, pondY + 2, 6, 2, '#6fcf5a');
+    R(pondX - prx * 0.5, pondY + pry * 0.4, 8, 4, '#3f8f45');
+    for (let i = 0; i < 5; i++) {
+      const rx = pondX - prx - 4 + i * 5;
+      R(rx, pondY - 6 - (i % 3) * 3, 2, 12 + (i % 3) * 3, '#4f8f3a');
+      R(rx - 1, pondY - 9 - (i % 3) * 3, 4, 5, '#8a5a2b');
+    }
+
+    // Деревья, кусты, камни, пеньки, грибы (не слишком кучно)
+    const shadow = (x, y, w) => blob(x, y, w, 8, 'rgba(0,0,0,0.16)');
+    const oak = (x, y, k) => {
+      shadow(x, y, 30 * k);
+      R(x - 5 * k, y - 22 * k, 10 * k, 22 * k, '#6b4423');
+      R(x + 1 * k, y - 22 * k, 4 * k, 22 * k, '#553419');
+      R(x - 5 * k, y - 22 * k, 2 * k, 22 * k, '#8a5a30');
+      const rows = [[16, -68], [32, -62], [44, -56], [52, -48], [52, -40], [44, -32], [32, -26]];
+      rows.forEach(([w, dy], i) => {
+        const col = i >= rows.length - 2 ? '#256f2f' : '#2f8a3b';
+        R(x - (w * k) / 2, y + dy * k, w * k, 8 * k, col);
+        if (i < rows.length - 2) R(x - (w * k) / 2 + 4 * k, y + dy * k, Math.max(4, w * k - 12 * k), 8 * k - 2, '#3fa34d');
+      });
+      R(x - 16 * k, y - 60 * k, 8 * k, 4 * k, '#6fcf5a');
+      R(x - 22 * k, y - 50 * k, 6 * k, 4 * k, '#6fcf5a');
+      R(x - 10 * k, y - 66 * k, 6 * k, 4 * k, '#6fcf5a');
+    };
+    const pine = (x, y, k) => {
+      shadow(x, y, 24 * k);
+      R(x - 3 * k, y - 14 * k, 6 * k, 14 * k, '#5a3a1c');
+      for (let j = 0; j < 3; j++) {
+        const top = y - (62 - j * 14) * k;
+        for (let r = 0; r < 5; r++) {
+          const w = (6 + r * 5 + j * 4) * k;
+          R(x - w / 2, top + r * 4 * k, w, 4 * k, j % 2 ? '#2a7a46' : '#34905a');
+          R(x - w / 2, top + r * 4 * k, Math.max(2, w * 0.3), 4 * k, '#4cb07a');
+        }
+      }
+    };
+    const bush = (x, y, k) => {
+      shadow(x, y, 20 * k);
+      R(x - 14 * k, y - 10 * k, 28 * k, 10 * k, '#3f9a45');
+      R(x - 10 * k, y - 16 * k, 20 * k, 8 * k, '#4cae4f');
+      R(x - 8 * k, y - 14 * k, 6 * k, 3 * k, '#7bd88f');
+      R(x + 4 * k, y - 8 * k, 3 * k, 3 * k, '#e74c3c');
+      R(x - 6 * k, y - 6 * k, 3 * k, 3 * k, '#e74c3c');
+    };
+    const rock = (x, y, k) => {
+      shadow(x, y, 16 * k);
+      R(x - 12 * k, y - 8 * k, 24 * k, 8 * k, '#8a8f98');
+      R(x - 8 * k, y - 13 * k, 16 * k, 6 * k, '#a4a9b2');
+      R(x - 7 * k, y - 12 * k, 6 * k, 3 * k, '#c9ced6');
+    };
+    const stump = (x, y, k) => {
+      shadow(x, y, 14 * k);
+      R(x - 9 * k, y - 12 * k, 18 * k, 12 * k, '#7a4f25');
+      R(x - 9 * k, y - 14 * k, 18 * k, 4 * k, '#c9a066');
+      R(x - 4 * k, y - 13 * k, 8 * k, 2 * k, '#a07a42');
+    };
+    const shroom = (x, y, k) => {
+      R(x - 1 * k, y - 6 * k, 3 * k, 6 * k, '#f1e6d0');
+      R(x - 5 * k, y - 12 * k, 11 * k, 6 * k, '#e74c3c');
+      R(x - 3 * k, y - 11 * k, 2 * k, 2 * k, '#ffffff');
+      R(x + 2 * k, y - 10 * k, 2 * k, 2 * k, '#ffffff');
+    };
+    const kinds = [oak, oak, oak, pine, pine, bush, bush, rock, stump, shroom];
+    const placed = [];
+    const attempts = Math.round(area * 4);
+    for (let i = 0; i < attempts && placed.length < Math.max(8, area / 3.4); i++) {
+      const x = 24 + rnd() * (W - 48);
+      const y = hz + 40 + rnd() * (H - hz - 150);
+      if (placed.some((p) => Math.hypot(p.x - x, p.y - y) < 78)) continue;
+      if (Math.abs(x - pondX) < prx + 40 && Math.abs(y - pondY) < pry + 40) continue;
+      placed.push({ x, y, fn: kinds[Math.floor(rnd() * kinds.length)], k: 0.8 + rnd() * 0.5 });
+    }
+    placed.sort((p, q) => p.y - q.y).forEach((p) => p.fn(Math.round(p.x), Math.round(p.y), p.k));
+
+    this.bg = c;
+  }
+
   drawBackground() {
     const ctx = this.ctx;
-    ctx.fillStyle = '#6eb767';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const now = Date.now();
+    if (this.bg) ctx.drawImage(this.bg, 0, 0);
+    const top = this.skyTop || 130;
+    const R = (x, y, w, h, col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(x), Math.round(y), w, h);
+    };
 
-    ctx.fillStyle = '#83c57d';
-    const step = 36;
-    for (let x = 0; x < this.canvas.width; x += step) {
-      for (let y = 0; y < this.canvas.height; y += step) {
-        if ((x + y) % 72 === 0) {
-          ctx.fillRect(x + 6, y + 6, 4, 3);
-          ctx.fillRect(x + 10, y + 9, 3, 4);
-        }
-      }
+    // Солнце
+    const sx = Math.round(W * 0.86);
+    const sy = top + 14;
+    const glow = 0.25 + 0.1 * Math.sin(now / 700);
+    ctx.fillStyle = `rgba(255, 240, 150, ${glow})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, 30, 0, Math.PI * 2);
+    ctx.fill();
+    R(sx - 14, sy - 14, 28, 28, '#ffe27a');
+    R(sx - 10, sy - 18, 20, 36, '#ffe27a');
+    R(sx - 18, sy - 10, 36, 20, '#ffe27a');
+    R(sx - 8, sy - 8, 16, 16, '#fff3b0');
+
+    // Облака плывут
+    const span = W + 280;
+    for (let i = 0; i < 4; i++) {
+      const x = (((now / 1000) * (9 + i * 4) + (i * span) / 4) % span) - 140;
+      const y = top - 6 + (i % 2) * 26 + i * 5;
+      R(x + 4, y + 14, 52, 6, '#d6ecfb');
+      R(x, y + 8, 60, 8, '#ffffff');
+      R(x + 10, y, 22, 10, '#ffffff');
+      R(x + 28, y + 4, 24, 8, '#ffffff');
     }
 
-    const flowerStep = 120;
-    for (let fx = 20; fx < this.canvas.width; fx += flowerStep) {
-      for (let fy = 20; fy < this.canvas.height; fy += flowerStep) {
-        const x = fx + ((fx * 17) % 60);
-        const y = fy + ((fy * 23) % 60);
-        if ((fx + fy) % 240 === 0) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(x - 2, y, 6, 2);
-          ctx.fillRect(x, y - 2, 2, 6);
-          ctx.fillStyle = '#ffd166';
-          ctx.fillRect(x, y, 2, 2);
-        } else if ((fx + fy) % 180 === 0) {
-          ctx.fillStyle = '#70a1ff';
-          ctx.fillRect(x - 1, y - 1, 4, 4);
-          ctx.fillStyle = '#fff9db';
-          ctx.fillRect(x, y, 2, 2);
-        }
-      }
+    // Птица пролетает раз в полминуты
+    const bt = (now / 1000) % 30;
+    if (bt < 9) {
+      const bx = -20 + (W + 40) * (bt / 9);
+      const by = top + 26 + Math.sin(bt * 3) * 8;
+      const up = Math.sin(bt * 14) > 0;
+      R(bx, by + (up ? 0 : 3), 4, 2, '#3d2b1f');
+      R(bx + 4, by + 2, 3, 3, '#3d2b1f');
+      R(bx + 7, by + (up ? 0 : 3), 4, 2, '#3d2b1f');
     }
+
+    // Бабочки над травой
+    const colors = ['#ffd166', '#ff8fa3', '#9fd3ff'];
+    for (let i = 0; i < 3; i++) {
+      const bx = W * (0.5 + 0.42 * Math.sin(now / 6500 + i * 2.1));
+      const by = this.horizon + (H - this.horizon) * (0.4 + 0.18 * Math.sin(now / 4700 + i * 3)) + 14 * Math.sin(now / 600 + i);
+      const flap = Math.sin(now / 80 + i * 2) > 0 ? 4 : 2;
+      R(bx - flap - 1, by - 3, flap, 5, colors[i]);
+      R(bx + 2, by - 3, flap, 5, colors[i]);
+      R(bx, by - 2, 2, 6, '#3d2b1f');
+    }
+  }
+
+  // Вспаханная земля под грядками, тропинка к калитке и забор вокруг
+  drawFarmland() {
+    const ctx = this.ctx;
+    const fb = this.farmBox;
+    if (!fb) return;
+    const t = this.tile;
+    const gp = this.gap;
+    const step = t + gp;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const x0 = this.gridX + (fb.minX - this.minX) * step;
+    const y0 = this.gridY + (fb.minY - this.minY) * step;
+    const w = fb.cols * t + (fb.cols - 1) * gp;
+    const h = fb.rows * t + (fb.rows - 1) * gp;
+    const pad = Math.round(t * 0.34);
+    const sc = Math.max(0.6, Math.min(t / 96, 1.6));
+    const R = (x, y, ww, hh, col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
+    };
+    const notched = (x, y, ww, hh, n, col) => {
+      R(x + n, y, ww - 2 * n, hh, col);
+      R(x, y + n, ww, hh - 2 * n, col);
+    };
+    const hsh = (n) => {
+      const v = Math.sin(n * 127.1) * 43758.5453;
+      return v - Math.floor(v);
+    };
+
+    // Тропинка вниз от калитки
+    const cxm = x0 + w / 2;
+    const pathW = Math.round(t * 0.9);
+    const yEnd = y0 + h + pad;
+    R(cxm - pathW / 2 - 3, yEnd, pathW + 6, H - yEnd, '#a8844f');
+    R(cxm - pathW / 2, yEnd, pathW, H - yEnd, '#cfae77');
+    for (let yy = yEnd + 6, i = 0; yy < H; yy += 20, i++) {
+      R(cxm - pathW / 2 + 4 + hsh(i) * pathW * 0.8, yy, 4, 3, '#b89560');
+      R(cxm - pathW / 2 + 4 + hsh(i + 50) * pathW * 0.8, yy + 9, 3, 3, '#e2c795');
+    }
+
+    // Вспаханный участок
+    const px0 = x0 - pad;
+    const py0 = y0 - pad;
+    const pw = w + pad * 2;
+    const ph = h + pad * 2;
+    R(px0 + 4, py0 + 8, pw, ph, 'rgba(0,0,0,0.2)');
+    notched(px0 - 4, py0 - 4, pw + 8, ph + 8, 8, '#6b4a2b');
+    notched(px0, py0, pw, ph, 8, '#a07b4f');
+    for (let yy = py0 + 10; yy < py0 + ph - 8; yy += 14) R(px0 + 8, yy, pw - 16, 3, '#8f6c42');
+    for (let i = 0; i < 40; i++) {
+      R(px0 + 8 + hsh(i) * (pw - 16), py0 + 8 + hsh(i + 90) * (ph - 16), 3, 2, i % 2 ? '#b8946a' : '#7d5c38');
+    }
+
+    // Забор
+    const fi = Math.round(pad * 0.55);
+    const fx0 = x0 - fi;
+    const fy0 = y0 - fi;
+    const fx1 = x0 + w + fi;
+    const fy1 = y0 + h + fi;
+    const th = Math.max(3, Math.round(4 * sc));
+    const ps = Math.max(6, Math.round(9 * sc));
+    const gate = pathW / 2 + 4;
+    const rail = (x, y, ww, hh) => {
+      R(x + 2, y + 3, ww, hh, 'rgba(0,0,0,0.22)');
+      R(x, y, ww, hh, '#b8864a');
+      if (ww > hh) R(x, y, ww, 1, '#e0b777');
+      else R(x, y, 1, hh, '#e0b777');
+    };
+    const post = (x, y, cap) => {
+      R(x - ps / 2 + 2, y - ps / 2 + 3, ps, ps, 'rgba(0,0,0,0.25)');
+      R(x - ps / 2, y - ps / 2, ps, ps, '#8a5f2d');
+      R(x - ps / 2 + 1, y - ps / 2 + 1, ps - 2, ps - 2, '#c99a5b');
+      R(x - ps / 2 + 1, y - ps / 2 + 1, ps - 2, 2, cap || '#e8c48a');
+    };
+    rail(fx0, fy0 - th / 2, fx1 - fx0, th);
+    rail(fx0 - th / 2, fy0, th, fy1 - fy0);
+    rail(fx1 - th / 2, fy0, th, fy1 - fy0);
+    rail(fx0, fy1 - th / 2, cxm - gate - fx0, th);
+    rail(cxm + gate, fy1 - th / 2, fx1 - cxm - gate, th);
+    const nx = Math.max(2, Math.round((fx1 - fx0) / (t * 0.6)));
+    const ny = Math.max(2, Math.round((fy1 - fy0) / (t * 0.6)));
+    for (let i = 0; i <= nx; i++) {
+      const x = fx0 + ((fx1 - fx0) * i) / nx;
+      post(x, fy0);
+      if (Math.abs(x - cxm) > gate + ps) post(x, fy1);
+    }
+    for (let j = 1; j < ny; j++) {
+      const y = fy0 + ((fy1 - fy0) * j) / ny;
+      post(fx0, y);
+      post(fx1, y);
+    }
+    post(cxm - gate, fy1, '#ffd166');
+    post(cxm + gate, fy1, '#ffd166');
   }
 
   // Рисует одну грядку в координатах 96x96 (масштаб задаётся снаружи)
@@ -1820,48 +2135,17 @@ class PixelFarm {
     const cy = S / 2;
     const now = Date.now();
 
-    ctx.fillStyle = '#5c381e';
-    ctx.fillRect(0, 0, S, S);
-    ctx.fillStyle = '#8d5b36';
-    ctx.fillRect(3, 3, S - 6, S - 6);
-    ctx.fillStyle = '#b0784a';
-    ctx.fillRect(3, 3, S - 6, 3);
-    ctx.fillStyle = '#9c6644';
-    ctx.fillRect(7, 7, S - 14, S - 14);
-
-    ctx.fillStyle = '#7f4f24';
-    for (let ry = 12; ry < S - 14; ry += 13) {
-      ctx.fillRect(9, ry, S - 18, 4);
-      ctx.fillStyle = '#b08968';
-      ctx.fillRect(14, ry - 3, 4, 3);
-      ctx.fillRect(S - 26, ry - 3, 5, 3);
-      ctx.fillStyle = '#7f4f24';
-    }
+    this.drawPlotBase(plot, now);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Золотая: золотая рамка и звезда. Улучшенная: синий ромб. Бонус соседа: зелёная стрелка.
-    if (plot.premium) {
-      ctx.strokeStyle = '#ffd23f';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(2, 2, S - 4, S - 4);
-      ctx.font = `14px ${EMOJI_FONT}`;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText('⭐', 14, 14);
-    } else {
-      if (plot.upgraded) {
-        ctx.strokeStyle = '#9fd3ff';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(2, 2, S - 4, S - 4);
-        ctx.font = `13px ${EMOJI_FONT}`;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('🔷', 14, 14);
-      }
+    // Бонус от золотого соседа (зелёная стрелка) и подсветка при улучшении
+    if (!plot.premium) {
       if (this.neighborBonus(plot) > 0) {
         ctx.font = "10px 'Press Start 2P', monospace";
         ctx.fillStyle = '#7bed9f';
-        ctx.fillText('▲', S - 13, 14);
+        ctx.fillText('▲', S - 15, 15);
       }
       if (this.upgrading && (this.upgrading === 'gold' ? this.canMakeGolden(plot) : !plot.upgraded)) {
         const rgb = this.upgrading === 'gold' ? '255, 210, 63' : '159, 211, 255';
@@ -1895,8 +2179,7 @@ class PixelFarm {
     // --- Растёт ---
     if (plot.state === 'growing') {
       const progress = Math.min(1, (now - plot.plantedAt) / 1000 / this.growTimeOf(crop, plot));
-      if (progress < 0.5) this.drawPixelSprout(cx, cy - 4);
-      else this.drawPixelMidWheat(cx, cy - 4);
+      this.drawGrowth(crop, progress, cx, cy - 4, now);
 
       const barW = S - 28;
       ctx.fillStyle = '#000000';
@@ -1936,6 +2219,214 @@ class PixelFarm {
     }
   }
 
+  // Основание грядки: деревянная, каменная (синяя) или золотая рамка и вспаханная земля
+  drawPlotBase(plot, now) {
+    const ctx = this.ctx;
+    const S = BASE;
+    const tier = this.plotTier(plot);
+    const R = (x, y, w, h, c) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, w, h);
+    };
+    const P = [
+      { dark: '#4a2c14', mid: '#8d5b36', light: '#c08a54', shade: '#6e4524', line: '#5e3a1c' },
+      { dark: '#3d4d5e', mid: '#8fa3b8', light: '#c8d8e8', shade: '#6c8198', line: '#566b80' },
+      { dark: '#7a4d00', mid: '#e0a81c', light: '#ffe68a', shade: '#b07a0a', line: '#a06c00' },
+    ][tier];
+
+    // Тень под грядкой
+    R(3, 6, S, S, 'rgba(0,0,0,0.28)');
+
+    // Рамка
+    R(0, 0, S, S, P.dark);
+    R(2, 2, S - 4, S - 4, P.mid);
+    R(2, 2, S - 4, 3, P.light);
+    R(2, 2, 3, S - 4, P.light);
+    R(2, S - 5, S - 4, 3, P.shade);
+    R(S - 5, 2, 3, S - 4, P.shade);
+
+    if (tier === 1) {
+      // Каменные блоки
+      [18, 38, 58, 78].forEach((x) => { R(x, 2, 1, 8, P.line); R(S - x, S - 10, 1, 8, P.line); });
+      [18, 38, 58, 78].forEach((y) => { R(2, y, 8, 1, P.line); R(S - 10, S - y, 8, 1, P.line); });
+    } else {
+      // Доски: стыки и «волокна»
+      [24, 48, 72].forEach((x) => { R(x, 2, 1, 8, P.line); R(x, S - 10, 1, 8, P.line); });
+      [24, 48, 72].forEach((y) => { R(2, y, 8, 1, P.line); R(S - 10, y, 8, 1, P.line); });
+      [[10, 4], [34, 6], [58, 4], [82, 6]].forEach(([x, y]) => { R(x, y, 6, 1, P.light); R(x + 2, S - y - 2, 6, 1, P.light); });
+    }
+
+    // Земля с бороздами
+    R(9, 9, S - 18, S - 18, '#2e1b0e');
+    R(10, 10, S - 20, S - 20, '#5b3a22');
+    for (let i = 0; i < 5; i++) {
+      const y = 13 + i * 13;
+      R(12, y, S - 24, 3, '#7a4f2d');
+      R(12, y + 3, S - 24, 5, '#4a2f1a');
+      R(12, y + 8, S - 24, 2, '#3a2412');
+    }
+    [[20, 24], [62, 38], [30, 58], [70, 66], [48, 46]].forEach(([x, y]) => R(x, y, 3, 2, '#8a7f74'));
+
+    // Уголки: гвозди, самоцветы или золотые скобы
+    if (tier === 0) {
+      [[4, 4], [S - 7, 4], [4, S - 7], [S - 7, S - 7]].forEach(([x, y]) => {
+        R(x, y, 3, 3, '#3b3b3b');
+        R(x, y, 2, 2, '#b9bec4');
+      });
+    } else if (tier === 1) {
+      [[3, 3], [S - 9, 3], [3, S - 9], [S - 9, S - 9]].forEach(([x, y]) => {
+        R(x, y, 6, 6, '#1e6fa8');
+        R(x + 1, y + 1, 4, 4, '#2d98da');
+        R(x + 1, y + 1, 2, 2, '#bfe9ff');
+      });
+      ctx.strokeStyle = 'rgba(120, 205, 255, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, S - 2, S - 2);
+    } else {
+      const gems = ['#e74c3c', '#2d98da', '#2ed573', '#a55eea'];
+      [[3, 3], [S - 10, 3], [3, S - 10], [S - 10, S - 10]].forEach(([x, y], i) => {
+        R(x, y, 7, 7, '#7a4d00');
+        R(x + 1, y + 1, 5, 5, gems[i]);
+        R(x + 1, y + 1, 2, 2, '#ffffff');
+      });
+      [24, 48, 72].forEach((x) => { R(x, 4, 3, 3, '#fff2a8'); R(x, S - 7, 3, 3, '#fff2a8'); });
+      [24, 48, 72].forEach((y) => { R(4, y, 3, 3, '#fff2a8'); R(S - 7, y, 3, 3, '#fff2a8'); });
+      ctx.strokeStyle = '#ffd23f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, S - 2, S - 2);
+      // Блик ползёт по золотой грядке
+      const p = ((now / 9) % (S + 260)) - 60;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, S, S);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.beginPath();
+      ctx.moveTo(p, 0);
+      ctx.lineTo(p + 12, 0);
+      ctx.lineTo(p - 28, S);
+      ctx.lineTo(p - 40, S);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Растущее растение: у каждой культуры свой вид и три стадии (росток, подросток, почти созрело)
+  drawGrowth(crop, progress, cx, cy, now) {
+    const ctx = this.ctx;
+    const g = GROWTH[crop.id] || GROWTH.wheat;
+    const st = progress < 0.34 ? 0 : progress < 0.67 ? 1 : 2;
+    const bx = Math.round(cx);
+    const by = Math.round(cy) + 17;
+    const sw = Math.round(Math.sin(now / 450 + bx * 0.1));
+    const R = (x, y, w, h, c) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, w, h);
+    };
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.scale(1.3, 1.3);
+    const L = g.leaf;
+    const D = g.dark;
+    const F = g.fruit;
+    R(-9, -1, 18, 3, 'rgba(0,0,0,0.25)');
+
+    switch (g.kind) {
+      case 'stalk':
+        if (st === 0) {
+          R(-1, -7, 3, 7, D); R(-7, -8, 6, 3, L); R(2, -10, 6, 3, L);
+        } else if (st === 1) {
+          R(-2, -18, 4, 18, D); R(-10, -8, 8, 3, L); R(2, -13, 8, 3, L); R(-2 + sw, -23, 4, 6, '#b7e4c7');
+        } else {
+          R(-2, -25, 4, 25, '#b7791f'); R(-10, -9, 8, 3, L); R(2, -15, 8, 3, L);
+          R(-5 + sw, -35, 10, 12, F); R(-3 + sw, -38, 6, 4, '#fefcbf'); R(-6 + sw, -30, 2, 6, '#744210'); R(4 + sw, -30, 2, 6, '#744210');
+        }
+        break;
+      case 'root':
+        if (st === 0) {
+          R(-1, -7, 2, 7, L); R(-5, -6, 2, 5, L); R(3, -6, 2, 5, L);
+        } else if (st === 1) {
+          R(-1, -17, 3, 17, L); R(-7 + sw, -13, 2, 13, D); R(5, -14, 2, 14, L); R(-4, -10, 2, 10, D);
+        } else {
+          R(-1, -23, 3, 23, L); R(-8 + sw, -17, 3, 17, D); R(6, -19, 3, 19, L); R(-4, -14, 2, 14, D); R(3, -12, 2, 12, D);
+          R(-5, -2, 10, 5, F); R(-3, 3, 6, 3, '#c4640f'); R(-3, -1, 3, 2, '#ffb24d');
+        }
+        break;
+      case 'bush':
+        if (st === 0) {
+          R(-1, -6, 2, 6, D); R(-6, -8, 5, 3, L); R(1, -9, 5, 3, L);
+        } else {
+          R(-2, -17, 4, 17, D); R(-13, -15, 11, 7, L); R(3, -17, 11, 7, L); R(-9, -24, 18, 8, L); R(-6, -22, 6, 2, '#8be0a0');
+          if (st === 1) {
+            R(-10, -10, 4, 4, '#8bc34a'); R(6, -12, 4, 4, '#8bc34a'); R(-2, -20, 4, 4, '#8bc34a');
+          } else {
+            [[-11, -12], [5, -14], [-3, -22]].forEach(([x, y]) => { R(x, y, 6, 6, F); R(x + 1, y + 1, 2, 2, '#ffffff'); R(x + 2, y - 2, 2, 2, D); });
+          }
+        }
+        break;
+      case 'tall':
+        if (st === 0) {
+          R(-1, -9, 2, 9, D); R(-7, -8, 6, 3, L); R(1, -11, 6, 3, L);
+        } else if (st === 1) {
+          R(-2, -27, 4, 27, D); R(-13, -15, 11, 3, L); R(2, -19, 11, 3, L); R(-11, -9, 9, 3, L);
+        } else {
+          R(-2, -33, 4, 33, D); R(-13, -17, 11, 3, L); R(2, -21, 11, 3, L); R(-11, -9, 9, 3, L);
+          R(3, -22, 7, 13, F); R(3, -11, 7, 5, L); R(4, -21, 2, 10, '#ffe770'); R(-3 + sw, -37, 6, 4, '#e8c872');
+        }
+        break;
+      case 'low':
+        if (st === 0) {
+          R(-6, -4, 12, 4, L); R(-2, -8, 4, 5, D);
+        } else {
+          R(-13, -6, 26, 6, L); R(-9, -11, 18, 6, D); R(-5, -15, 10, 5, L);
+          if (st === 1) {
+            R(-1, -17, 3, 3, '#ffffff'); R(0, -16, 1, 1, '#ffd166');
+          } else {
+            [[-11, -4], [6, -3], [-3, -11]].forEach(([x, y]) => { R(x, y, 6, 7, F); R(x + 1, y + 1, 2, 2, '#ffd0d6'); R(x + 3, y + 4, 1, 1, '#ffe0a0'); R(x + 1, y - 1, 4, 2, L); });
+          }
+        }
+        break;
+      case 'vine':
+        if (st === 0) {
+          R(-1, -6, 2, 6, D); R(-7, -7, 6, 3, L); R(2, -8, 6, 3, L);
+        } else if (st === 1) {
+          R(-20, -2, 40, 3, D); R(-18, -9, 9, 7, L); R(10, -10, 9, 7, L); R(-5, -10, 10, 9, F); R(-4, -9, 3, 3, g.light);
+        } else {
+          R(-22, -2, 44, 3, D); R(-20, -10, 10, 8, L); R(12, -11, 10, 8, L);
+          R(-10, -18, 20, 17, F); R(-5, -18, 3, 17, g.stripe); R(2, -18, 3, 17, g.stripe); R(-8, -16, 4, 4, g.light);
+          R(-1, -21, 3, 4, D);
+        }
+        break;
+      case 'grape':
+        if (st === 0) {
+          R(-1, -8, 2, 8, D); R(-7, -9, 6, 3, L); R(1, -10, 6, 3, L);
+        } else {
+          R(-2, -28, 4, 28, '#8d6e63'); R(-12, -24, 10, 6, L); R(3, -20, 10, 6, L); R(-9, -30, 8, 5, L);
+          if (st === 1) {
+            R(-4, -15, 8, 8, '#9ccc65');
+          } else {
+            R(-7, -19, 14, 4, F); R(-6, -15, 12, 4, F); R(-5, -11, 10, 4, F); R(-3, -7, 6, 4, F); R(-1, -4, 3, 3, F);
+            R(-5, -18, 2, 2, g.light); R(-3, -14, 2, 2, g.light); R(1, -10, 2, 2, g.light);
+          }
+        }
+        break;
+      default: // magic: саженец со светящимся плодом
+        if (st === 0) {
+          R(-1, -7, 3, 7, '#8d6e63'); R(-6, -9, 5, 3, L); R(2, -10, 5, 3, L);
+        } else {
+          R(-2, -20, 4, 20, '#8d6e63'); R(-12, -29, 24, 11, L); R(-8, -34, 16, 6, '#7bd88f'); R(-10, -27, 6, 3, '#7bd88f');
+          if (st === 1) {
+            R(-2, -22, 5, 5, F); R(-1, -21, 2, 2, '#ffffff');
+          } else {
+            [[-9, -24], [4, -22], [-3, -31]].forEach(([x, y]) => { R(x, y, 7, 7, F); R(x + 1, y + 1, 2, 2, '#ffffff'); });
+            if (Math.sin(now / 220) > 0) { R(9, -38, 2, 7, '#ffffff'); R(6, -36, 8, 2, '#ffffff'); }
+          }
+        }
+    }
+    ctx.restore();
+  }
+
   // Свечение и искры вокруг созревшего плода феникса (координаты 96x96)
   drawPhoenixAura(cx, cy, now) {
     const ctx = this.ctx;
@@ -1967,6 +2458,8 @@ class PixelFarm {
     const now = Date.now();
     const SET = BUILDING_SETTINGS;
 
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(3, 6, S, S);
     ctx.fillStyle = '#5c381e';
     ctx.fillRect(0, 0, S, S);
     ctx.fillStyle = '#d9c7a0';
