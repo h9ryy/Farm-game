@@ -104,7 +104,49 @@ function drawDragon(ctx) {
   sparkle(ctx, 20, 3, '#ffffff');
 }
 
-const DRAW = { apple: drawApple, peach: drawPeach, dragon: drawDragon };
+// Плод феникса: рисуется по сетке 24x24 (каждая буква это цвет, точка это пусто)
+const PHOENIX_PALETTE = {
+  h: 'rgba(255, 140, 40, 0.28)', K: '#5c0a0e', R: '#be161c', r: '#e83a1c', O: '#ff7a1a', o: '#ffaa3c',
+  Y: '#ffd23f', y: '#fff3a0', W: '#ffffff', G: '#f2b600', g: '#a86a00',
+};
+const PHOENIX_ROWS = [
+  '........................',
+  '...........OW...y.......',
+  '........Y.hOyh..........',
+  '.......hOhhOyOhOh....W..',
+  '..Y..hhOhhhOyOhhOhh.....',
+  '....hhrYhhhYyYhhYrhh....',
+  '...hhhOYhhhYyYhhYOhhh...',
+  '..hhhhOYrhOGGGhrYOhYhh..',
+  '..hhWhrYOKgGGGgOYrhhhh..',
+  '.hhyhyhKKOOOOOOKKhyhyhh.',
+  '.hhYYYKKOOYYYYOOKKYYYhh.',
+  'yYYhOKKoWoYyyYYOOKKOhYYy',
+  'hhOOOKOoWoyyyyYYOOKOOOYh',
+  'hyOOKKrrooyyyyYYrrKKOOhh',
+  'yYOOKrrrYYyyyyYYrrrKOOYy',
+  'hhhhKrrrYYyyyyYYrrrKhhhh',
+  '.hhhKrrrrYYyyYYrrrrKhhh.',
+  '.hhhKKRRRYYYYYYRRRKKhhh.',
+  '.hhhhKRRRRYYYYRRRRKhhhh.',
+  '..hhhKKRRRRRRRRRRKKhhh..',
+  '..hhhhKRRRRRRRRRRKhhhh..',
+  '...hhYhKKRRRRRRKKhhWh...',
+  '....hhhhKKKKKKKKhhhh....',
+  '.....hhhhhhhhhhhhhh.....',
+];
+
+// Стартовые грядки
+function drawPhoenix(ctx) {
+  PHOENIX_ROWS.forEach((row, y) => {
+    for (let x = 0; x < S; x++) {
+      const c = PHOENIX_PALETTE[row[x]];
+      if (c) px(ctx, x, y, c);
+    }
+  });
+}
+
+const DRAW = { apple: drawApple, peach: drawPeach, dragon: drawDragon, phoenix: drawPhoenix };
 
 // Ключи культур (id из data.js), для которых есть красивый спрайт
 export const FRUIT_SPRITE_IDS = Object.keys(DRAW);

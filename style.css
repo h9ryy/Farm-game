@@ -482,3 +482,13 @@ html, body {
   .seed-img { width: 36px; height: 36px; }
   .seed-info { font-size: 8px; }
 }
+
+/* Плод феникса в панели семян светится */
+.seed-btn[data-crop="phoenix"]:not(.locked) {
+  animation: phoenixGlow 1.2s infinite alternate;
+}
+
+@keyframes phoenixGlow {
+  from { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 4px #ff7a1a; }
+  to { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 16px #ffd23f; }
+}

@@ -128,6 +128,20 @@ export const CROPS = {
   }
 };
 
+// Плод феникса: открывается на 15 уровне, втрое сильнее драконьего, только на золотых грядках
+CROPS.phoenix = {
+  id: 'phoenix',
+  name: 'Плод феникса',
+  icon: '🔥',
+  seedCost: 54000,
+  sellPrice: 150000,
+  growTime: 40,
+  color: '#FF7A1A',
+  stages: 3,
+  levelReq: 15,
+  tier: 2,
+};
+
 // Стартовые грядки (поле 5x5, центр)
 export const START_PLOTS = [
   { x: 2, y: 2 },

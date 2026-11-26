@@ -5,7 +5,7 @@ import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, GOLDEN_MAX, GOLDEN_UPGRAD
 
 // Опыт, нужный для каждого уровня (индекс = уровень)
 // Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
-const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500];
+const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 480, 1500, 2300, 3300, 4500, 5600, 6800, 8100, 9500];
 const MAX_LEVEL = LEVEL_XP.length - 1;
 const GRID = 6;       // поле 6x6 (грядки и здания)
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
@@ -1865,6 +1865,7 @@ class PixelFarm {
     // --- Созрела ---
     if (plot.state === 'ripe') {
       const bob = Math.round(Math.sin(now / 140) * 3);
+      if (crop.id === 'phoenix') this.drawPhoenixAura(cx, cy + 4 + bob, now);
       if (crop.id === 'wheat') {
         this.drawPixelRipeWheat(cx, cy + 12 + bob);
       } else if (this.sprites[crop.id]) {
@@ -1889,6 +1890,30 @@ class PixelFarm {
         ctx.fillText(crop.icon, cx, 19);
       }
     }
+  }
+
+  // Свечение и искры вокруг созревшего плода феникса (координаты 96x96)
+  drawPhoenixAura(cx, cy, now) {
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 280);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, BASE, BASE);
+    ctx.clip();
+    const grad = ctx.createRadialGradient(cx, cy, 6, cx, cy, 46);
+    grad.addColorStop(0, `rgba(255, 170, 40, ${0.55 + 0.25 * pulse})`);
+    grad.addColorStop(1, 'rgba(255, 90, 20, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 46, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 6; i++) {
+      const a = now / 700 + (i * Math.PI * 2) / 6;
+      const r = 32 + 4 * Math.sin(now / 300 + i);
+      ctx.fillStyle = i % 2 ? '#ffffff' : '#ffd23f';
+      ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.85), 3, 3);
+    }
+    ctx.restore();
   }
 
   drawBuilding(b) {
