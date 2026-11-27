@@ -397,6 +397,11 @@ class PixelFarm {
 
     this.floatingTexts = [];
     this.particles = [];
+    this.fwShows = []; // идущие салюты
+    this.rockets = []; // ракеты фейерверка
+    this.sparks = []; // искры взрывов
+    this.winT = -1; // сколько секунд идёт экран «Игра пройдена» (-1 = не идёт)
+    this.gameWon = false;
     this.hoveredPlot = null;
     this.lastTime = performance.now();
 
@@ -734,6 +739,10 @@ class PixelFarm {
     if (id === 'fountain' || id === 'wheel') b.boost = 0;
     this.buildings.push(b);
     this.placing = false;
+    if (id === 'wheel' && !this.gameWon) {
+      this.gameWon = true;
+      this.startWin();
+    }
     const { px, py } = this.plotPos({ x, y });
     this.addFloatingText(px + this.tile / 2, py + this.tile / 2, 'ПОСТРОЕНО!', '#7bed9f');
     this.spawnHarvestParticles(px + this.tile / 2, py + this.tile / 2);
@@ -897,7 +906,7 @@ class PixelFarm {
             sound.playUnlock();
             this.buzz(30);
             this.addFloatingText(cx, cy - 20, `УРОЖАЙ ×${S.wheelMult}!`, '#ffd23f', 12);
-            for (let i = 0; i < 3; i++) this.spawnHarvestParticles(cx, cy);
+            this.startFireworks(2.6, 0.3);
           }
         }
       }
@@ -1688,6 +1697,7 @@ class PixelFarm {
       savedAt: Date.now(),
       selectedCrop: this.selectedCrop,
       tutorialDone: this.tutorialDone,
+      won: this.gameWon,
       plots: this.plots.map((p) => ({
         x: p.x,
         y: p.y,
@@ -1751,6 +1761,7 @@ class PixelFarm {
           this.buildings.push(b);
         });
       }
+      this.gameWon = !!saved.won || this.hasBuilding('wheel');
       this.tutorialDone = !!saved.tutorialDone;
       if (Array.isArray(saved.plots)) {
         // Старые координаты грядок из версии 2 (по номеру)
@@ -1989,6 +2000,7 @@ class PixelFarm {
 
   update(dt) {
     this.animateView(dt);
+    this.updateFireworks(dt);
     const now = Date.now();
     const delay = this.autoDelay();
     this.updateBuildings(dt);
@@ -2108,6 +2120,8 @@ class PixelFarm {
       ctx.restore();
     });
 
+    this.drawFireworks();
+
     this.floatingTexts.forEach((ft) => {
       ctx.save();
       ctx.globalAlpha = Math.max(0, ft.alpha);
@@ -2120,6 +2134,146 @@ class PixelFarm {
       ctx.fillText(ft.text, Math.round(ft.x), Math.round(ft.y));
       ctx.restore();
     });
+  }
+
+  // ---------- ФЕЙЕРВЕРКИ И ЭКРАН «ИГРА ПРОЙДЕНА» ----------
+  // Запускает салют: ракеты взлетают снизу экрана и взрываются разноцветными искрами
+  startFireworks(dur, rate) {
+    this.fwShows.push({ t: 0, dur, rate, next: 0 });
+  }
+
+  startWin() {
+    this.winT = 0;
+    this.startFireworks(6.5, 0.2);
+    sound.playUnlock();
+    this.buzz(80);
+  }
+
+  launchRocket() {
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const palettes = [
+      ['#ff5a5a', '#ffd23f'], ['#7bed9f', '#ffffff'], ['#74b9ff', '#a29bfe'],
+      ['#ffb347', '#ff6b81'], ['#f9ca24', '#ffffff'], ['#e056fd', '#7efff5'],
+    ];
+    this.rockets.push({
+      x: W * (0.08 + Math.random() * 0.84),
+      y: H + 8,
+      ty: H * (0.1 + Math.random() * 0.4),
+      v: 560 + Math.random() * 200,
+      pal: palettes[Math.floor(Math.random() * palettes.length)],
+      ring: Math.random() < 0.5,
+    });
+  }
+
+  explode(r) {
+    const n = 44 + Math.floor(Math.random() * 20);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+      const sp = r.ring ? 190 + Math.random() * 15 : 70 + Math.random() * 190;
+      this.sparks.push({
+        x: r.x, y: r.y, px: r.x, py: r.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 1.1 + Math.random() * 0.8, max: 1.9,
+        color: r.pal[i % 2],
+      });
+    }
+    sound.playTone(130 + Math.random() * 150, 'triangle', 0.12, 0.06);
+    if (this.sparks.length > 1500) this.sparks.splice(0, this.sparks.length - 1500);
+  }
+
+  updateFireworks(dt) {
+    const d = Math.min(dt, 0.05);
+    for (let i = this.fwShows.length - 1; i >= 0; i--) {
+      const show = this.fwShows[i];
+      show.t += d;
+      show.next -= d;
+      if (show.t < show.dur && show.next <= 0) {
+        this.launchRocket();
+        show.next = show.rate * (0.6 + Math.random() * 0.8);
+      }
+      if (show.t >= show.dur) this.fwShows.splice(i, 1);
+    }
+    for (let i = this.rockets.length - 1; i >= 0; i--) {
+      const r = this.rockets[i];
+      r.y -= r.v * d;
+      this.sparks.push({ x: r.x, y: r.y + 6, px: r.x, py: r.y + 6, vx: (Math.random() - 0.5) * 30, vy: 40, life: 0.35, max: 0.35, color: '#ffb347' });
+      if (r.y <= r.ty) {
+        this.explode(r);
+        this.rockets.splice(i, 1);
+      }
+    }
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const p = this.sparks[i];
+      p.px = p.x;
+      p.py = p.y;
+      p.vy += 240 * d;
+      p.vx *= 0.99;
+      p.x += p.vx * d;
+      p.y += p.vy * d;
+      p.life -= d;
+      if (p.life <= 0) this.sparks.splice(i, 1);
+    }
+    if (this.winT >= 0) {
+      this.winT += d;
+      if (this.winT > 7) this.winT = -1;
+    }
+  }
+
+  drawFireworks() {
+    const ctx = this.ctx;
+    const big = this.canvas.width >= 600 ? 4 : 3;
+    ctx.save();
+    // затемнение фона во время надписи
+    if (this.winT >= 0 && this.winT < 5.4) {
+      const a = Math.min(1, this.winT / 0.4, (5.4 - this.winT) / 0.6);
+      ctx.fillStyle = `rgba(10, 10, 50, ${0.38 * a})`;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    this.rockets.forEach((r) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(r.x) - 1, Math.round(r.y), 3, 8);
+    });
+    this.sparks.forEach((p) => {
+      const a = Math.max(0, Math.min(1, p.life / 0.7));
+      ctx.globalAlpha = a * 0.5;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(Math.round(p.px), Math.round(p.py), big - 1, big - 1);
+      ctx.globalAlpha = a;
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), big, big);
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    this.drawWinBanner();
+  }
+
+  drawWinBanner() {
+    const t = this.winT;
+    if (t < 0 || t > 5) return;
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    const fade = Math.min(1, t / 0.3, (5 - t) / 0.7);
+    const grow = 0.6 + 0.4 * Math.min(1, t / 0.5);
+    const pulse = 1 + 0.03 * Math.sin(t * 6);
+    const fs = Math.max(16, Math.min(48, W / 18)) * grow * pulse;
+    const cx = W / 2;
+    const cy = H * 0.42;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, fade);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const line = (text, y, size, color, shadow) => {
+      ctx.font = `${Math.round(size)}px 'Press Start 2P', ${EMOJI_FONT}`;
+      ctx.fillStyle = shadow;
+      ctx.fillText(text, Math.round(cx) + Math.max(2, size / 10), Math.round(y) + Math.max(2, size / 10));
+      ctx.fillStyle = color;
+      ctx.fillText(text, Math.round(cx), Math.round(y));
+    };
+    line('ИГРА ПРОЙДЕНА!', cy, fs, '#ffd23f', '#7a2d00');
+    line('Поздравляем!', cy + fs * 1.3, Math.max(10, fs * 0.42), '#ffffff', '#000000');
+    line('Играй дальше или начни заново в настройках ⚙️', cy + fs * 2.1, Math.max(8, fs * 0.28), '#c8f7dc', '#000000');
+    ctx.restore();
   }
 
   // ---------- ФОН ----------
