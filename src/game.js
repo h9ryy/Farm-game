@@ -14,7 +14,7 @@ const GROW_TAP_MAX = 2; // сколько раз за один рост тап �
 const EMOJI_FONT = "'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif";
 
 // Быстрые цели идут по порядку. stat: harvested, earned, upgrades, plots (накопительно за всё время)
-// или текущее состояние: level, buildings, golden, barn, late. target: сколько нужно, reward: монеты.
+// или текущее состояние: level, buildings, golden, mill, late. target: сколько нужно, reward: монеты.
 const QUESTS = [
   { stat: 'plots', target: 1, reward: 150, text: 'Купи 1 грядку' },
   { stat: 'harvested', target: 30, reward: 200, text: 'Собери 30 урожаев' },
@@ -35,7 +35,7 @@ const QUESTS = [
   { stat: 'buildings', target: 3, reward: 100000, text: 'Построй 3 здания' },
   { stat: 'golden', target: 1, reward: 250000, text: 'Получи золотую грядку' },
   { stat: 'earned', target: 3000000, reward: 500000, text: 'Заработай 3 млн монет' },
-  { stat: 'barn', target: 1, reward: 1000000, text: 'Построй амбар' },
+  { stat: 'mill', target: 1, reward: 1000000, text: 'Построй мельницу' },
   { stat: 'earned', target: 20000000, reward: 3000000, text: 'Заработай 20 млн монет' },
   { stat: 'late', target: 1, reward: 5000000, text: 'Построй замок, фонтан или колесо' },
 ];
@@ -66,6 +66,13 @@ const GROWTH = {
   peach: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff8fa0' },
   dragon: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#e0267a' },
   phoenix: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff7a1a' },
+  star: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#6f45d9' },
+};
+
+// Свечение вокруг созревших мифических плодов: цвет сияния и искр
+const AURA = {
+  phoenix: { inner: '255, 170, 40', outer: '255, 90, 20', sparks: ['#ffd23f', '#ffffff'] },
+  star: { inner: '160, 130, 255', outer: '60, 40, 200', sparks: ['#c9b8ff', '#ffffff'] },
 };
 
 // Пиксельные спрайты зданий 32x32: каждая буква это цвет, точка это пусто
@@ -207,38 +214,38 @@ const BUILDING_ART = {
     '.........xxxxxxxxxxxxxx.........',
     '................................',
   ],
-  barn: [
-    '............kkkDDkyk............',
-    '...........kyDDDDDDk............',
-    '............kkkDDkk.............',
-    '............kkkDDkkkk...........',
-    '..........kktSSSSSSSSk..........',
-    '........kktssssssssssskk........',
-    '......kktSSSSSSSSSSSSSSSkk......',
-    '....kktssssssssssssssssssskk....',
-    '..kktSSSSSSSSShhhhSSSSSSSSSSkk..',
-    '.ktssssssssssshaahssssssssssssk.',
-    '.ktSSSSSSSSSSShaahSSSSSSSSSSSSSk',
-    'ktsssssssssssshaahsssssssssssssk',
-    'ktSSSSSSSSSSSShaahSSSSSSSSSSSSSS',
-    'tssssssssssssshDDhssssssssssssss',
-    'tSTTTTTTTTTTTTTTTTTTTTTTTTTTTTSS',
-    'kkkkrRrrRrrRrrRrrRrrRrrRrrRrkkkk',
-    '...krRrrRrrRrrRrrRrrRrrRrrRrk...',
-    '...krRrrRrrRrrRrrRrrRrrRrrRrk...',
-    '...krRrrRhhhhhhDDhhhhhhRrrRrk...',
-    '...krRrrRhhRRRRDDRRRRhhRrrRrk...',
-    '...krRrrRhRhRRRDDRRRhRhRrrRrk...',
-    '...krRrrRhRRhRRDDRRhRRhRrrRrk...',
-    '...krRrrRhRRRhRDDRhRRRhRrrRrk...',
-    '...krRrrRhRRRRhDDhRRRRhRrrRrk...',
-    '...krRrrRhRRRRRhhRRRRRhRrrRrk...',
-    '...krRrrRhRRRRRhhRRRRRhRrrRrk...',
-    '..kTTTTTTTTTTTTTTTTTTTTTTTTTTk..',
-    '..kTTTTTTTTTTTTTTTTTTTTTTTTTTk..',
-    '..xkkkkkkkkkkkkkkkkkkkkkkkkkkx..',
-    '..xxxxxxxxxxxxxxxxxxxxxxxxxxxx..',
-    '.....xxxxxxxxxxxxxxxxxxxxxx.....',
+  mill: [
+    '................................',
+    '................................',
+    '................................',
+    '...............kk...............',
+    '..............kqrk..............',
+    '.............kqRRRk.............',
+    '............kqrrrrrk............',
+    '...........kqRRRRRRRk...........',
+    '..........kqrrrrrrrrrk..........',
+    '.........kqRRRRDDRRRRRk.........',
+    '........kqrrrrDyyDrrrrrk........',
+    '.......kqRRRRRRDDRRRRRRRk.......',
+    '........kkEgggEgggEgGGkk........',
+    '.........kggggggggggGGk.........',
+    '.........kggggggggggGGk.........',
+    '........kggECCgEgggCCGGk........',
+    '........kgggccgggggccGGk........',
+    '........kgggccgggggccGGk........',
+    '.......kEgggEgggEgggEgGGk.......',
+    '.......kgggggggDDDggggGGk.......',
+    '.......kggggggDDDDDgggGGk.......',
+    '.......kggEgggDDDDDgggEGGk......',
+    '......kgggggggDDDDDggggGGk......',
+    '......kgggggggDDDDDggggGGk......',
+    '......kEgggEggDDDDDEgggEGk......',
+    '.....kggggggggDDDDDgggggGGk.....',
+    '.....kgggggggddddddgggggGGk.....',
+    '....kSSSSSSSSSSSSSSSSSSSSSSk....',
+    '...xxkkkkkkkkkkkkkkkkkkkkkkxx...',
+    '...xxxxxxxxxxxxxxxxxxxxxxxxxx...',
+    '......xxxxxxxxxxxxxxxxxxxx......',
     '................................',
   ],
   castle: [
@@ -452,8 +459,7 @@ class PixelFarm {
   }
 
   priceOf(crop) {
-    const barn = this.hasBuilding('barn') ? 1 + BUILDING_SETTINGS.barnBonus : 1;
-    return Math.round(crop.sellPrice * (1 + UPGRADES.value.effectPerLevel * this.upgrades.value) * barn);
+    return Math.round(crop.sellPrice * (1 + UPGRADES.value.effectPerLevel * this.upgrades.value));
   }
 
   hasBuilding(id) {
@@ -822,19 +828,6 @@ class PixelFarm {
     this.bee = null;
   }
 
-  barnSell(b) {
-    const total = this.sellTotal();
-    if (total <= 0) return;
-    this.coins += total;
-    this.stats.earned += total;
-    Object.keys(CROPS).forEach((id) => (this.inventory[id] -= this.sellable(id)));
-    const { px, py } = this.plotPos(b);
-    this.addFloatingText(px + this.tile / 2, py + this.tile / 2, `+💰${total}`, '#ffde59', 11);
-    this.flyItem(px + this.tile / 2, py + this.tile / 2, '💰', 'coinsVal', 4);
-    sound.playTone(880, 'triangle', 0.08, 0.08);
-    this.updateUI();
-  }
-
   // Здания позднего этапа: замок, фонтан, колесо обозрения
   updateLateBuildings(step) {
     const S = BUILDING_SETTINGS;
@@ -925,12 +918,6 @@ class PixelFarm {
             b.t = 0;
             this.spawnBee();
           }
-        }
-      } else if (b.id === 'barn') {
-        b.t += step;
-        if (b.t >= S.barnInterval) {
-          b.t = 0;
-          this.barnSell(b);
         }
       }
     });
@@ -1276,7 +1263,7 @@ class PixelFarm {
     const amount = (golden ? 5 : 1) * (this.wheelActive() ? BUILDING_SETTINGS.wheelMult : 1);
     this.inventory[crop.id] += amount;
     this.stats.harvested += 1;
-    this.xp += this.xpOf(crop);
+    this.xp += Math.round(this.xpOf(crop) * (this.hasBuilding('mill') ? 1 + BUILDING_SETTINGS.millXp : 1));
     this.valueLog.push({ t: Date.now(), v: this.priceOf(crop) * amount });
 
     if (auto) {
@@ -1796,7 +1783,7 @@ class PixelFarm {
       case 'level': return this.level;
       case 'buildings': return this.buildings.length;
       case 'golden': return this.goldenCount();
-      case 'barn': return this.hasBuilding('barn') ? 1 : 0;
+      case 'mill': return this.hasBuilding('mill') ? 1 : 0;
       case 'late': return ['castle', 'fountain', 'wheel'].filter((id) => this.hasBuilding(id)).length;
       default: return this.stats[q.stat] || 0;
     }
@@ -2514,7 +2501,7 @@ class PixelFarm {
     // --- Созрела ---
     if (plot.state === 'ripe') {
       const bob = Math.round(Math.sin(now / 140) * 3);
-      if (crop.id === 'phoenix') this.drawPhoenixAura(cx, cy + 4 + bob, now);
+      if (AURA[crop.id]) this.drawFruitAura(crop.id, cx, cy + 4 + bob, now);
       if (crop.id === 'wheat') {
         this.drawPixelRipeWheat(cx, cy + 12 + bob);
       } else if (this.sprites[crop.id]) {
@@ -2749,17 +2736,18 @@ class PixelFarm {
     ctx.restore();
   }
 
-  // Свечение и искры вокруг созревшего плода феникса (координаты 96x96)
-  drawPhoenixAura(cx, cy, now) {
+  // Свечение и искры вокруг созревшего мифического плода (координаты 96x96)
+  drawFruitAura(id, cx, cy, now) {
     const ctx = this.ctx;
+    const A = AURA[id];
     const pulse = 0.5 + 0.5 * Math.sin(now / 280);
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, BASE, BASE);
     ctx.clip();
     const grad = ctx.createRadialGradient(cx, cy, 6, cx, cy, 46);
-    grad.addColorStop(0, `rgba(255, 170, 40, ${0.55 + 0.25 * pulse})`);
-    grad.addColorStop(1, 'rgba(255, 90, 20, 0)');
+    grad.addColorStop(0, `rgba(${A.inner}, ${0.55 + 0.25 * pulse})`);
+    grad.addColorStop(1, `rgba(${A.outer}, 0)`);
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(cx, cy, 46, 0, Math.PI * 2);
@@ -2767,7 +2755,7 @@ class PixelFarm {
     for (let i = 0; i < 6; i++) {
       const a = now / 700 + (i * Math.PI * 2) / 6;
       const r = 32 + 4 * Math.sin(now / 300 + i);
-      ctx.fillStyle = i % 2 ? '#ffffff' : '#ffd23f';
+      ctx.fillStyle = A.sparks[i % 2];
       ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.85), 3, 3);
     }
     ctx.restore();
@@ -2836,6 +2824,33 @@ class PixelFarm {
     ctx.fillRect(cx - 2, cy - 2, 4, 4);
   }
 
+  // Лопасти мельницы крутятся
+  drawMillBlades(now) {
+    const ctx = this.ctx;
+    const hx = 48;
+    const hy = 31;
+    const rot = (now / 2400) % (Math.PI * 2); // угол берём по модулю: огромные числа браузер округляет
+    for (let k = 0; k < 4; k++) {
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(rot + (k * Math.PI) / 2);
+      ctx.fillStyle = '#2e1a0e';
+      ctx.fillRect(2, -2, 33, 4);
+      ctx.fillRect(9, -10, 26, 9);
+      ctx.fillStyle = '#8a5a2b';
+      ctx.fillRect(3, -1, 31, 2);
+      ctx.fillStyle = '#f3efe2';
+      ctx.fillRect(10, -9, 24, 7);
+      ctx.fillStyle = '#b8a98a';
+      [17, 25, 33].forEach((x) => ctx.fillRect(x, -9, 1, 7));
+      ctx.restore();
+    }
+    ctx.fillStyle = '#2e1a0e';
+    ctx.fillRect(hx - 5, hy - 5, 10, 10);
+    ctx.fillStyle = '#e0a81c';
+    ctx.fillRect(hx - 3, hy - 3, 6, 6);
+  }
+
   drawBuilding(b) {
     const ctx = this.ctx;
     const S = BASE;
@@ -2851,6 +2866,7 @@ class PixelFarm {
     }
     if (b.id === 'fountain') this.drawFountainWater(b, now);
     if (b.id === 'wheel') this.drawWheelTop(b, now);
+    if (b.id === 'mill') this.drawMillBlades(now);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2884,8 +2900,8 @@ class PixelFarm {
       }
     } else if (b.id === 'apiary') {
       if (!this.bee) bar(b.t / SET.beeInterval, '#ffd23f');
-    } else if (b.id === 'barn') {
-      bar(b.t / SET.barnInterval, '#7bed9f');
+    } else if (b.id === 'mill') {
+      pill(`XP +${Math.round(SET.millXp * 100)}%`, '#8c6239');
     } else if (b.id === 'castle') {
       if (b.chest) pill('🎁 ТАП', '#2ed573');
       else bar(b.t / SET.castleInterval, '#ffd23f');

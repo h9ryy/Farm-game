@@ -519,3 +519,13 @@ html, body {
 
 .reset-row { display: flex; gap: 8px; margin-top: 12px; }
 .reset-row .pixel-btn { flex: 1; font-size: 9px; padding: 10px 4px; }
+
+/* Звёздный плод в панели семян светится */
+.seed-btn[data-crop="star"]:not(.locked) {
+  animation: starGlow 1.4s infinite alternate;
+}
+
+@keyframes starGlow {
+  from { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 4px #6f45d9; }
+  to { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 16px #b79bff; }
+}

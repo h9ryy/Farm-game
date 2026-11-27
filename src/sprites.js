@@ -146,7 +146,48 @@ function drawPhoenix(ctx) {
   });
 }
 
-const DRAW = { apple: drawApple, peach: drawPeach, dragon: drawDragon, phoenix: drawPhoenix };
+// Звёздный плод: тёмно-фиолетовый шар с галактикой и звёздами
+const STAR_PALETTE = {
+  h: 'rgba(150, 120, 255, 0.28)', K: '#0a0a30', V: '#6f45d9', v: '#4b2fb0', U: '#2a1f85', I: '#17135a',
+  L: '#b79bff', W: '#ffffff', c: '#9fe6ff', G: '#f2b600', g: '#a86a00', T: '#4cc9c0',
+};
+const STAR_ROWS = [
+  '........................',
+  '........................',
+  '........hhhhhhhh..W.....',
+  '...W..hhhhhGGghhhh......',
+  '..WWWhhhhTThGhTThhh.....',
+  '...WhhhhThhTGTchThhhc...',
+  '...hhhhhKTTKGKTThhhccc..',
+  '..hhhhhKVVVVVVVVKhhhch..',
+  '..hhhhKVVVVVVVVcVKhhhh..',
+  '.hhhhKVcccVVVVVVVVKhhhh.',
+  '.hhhKvLcWcvvvvvvLvvKhhh.',
+  '.hhhKvLcccLLLLLLWLvKhhh.',
+  'hhhhKvLvvvLvvvvLLvvKhhWh',
+  'hhWhKLvvvLvvWvvvLvvKhhhh',
+  'hhhhKLUUULLWWWUUULWKhhhh',
+  '.hhhKULUUcLUWLUUULUKhhh.',
+  '.hhhKULUUUULLUUULUUKhhh.',
+  '.hhhKUULUUUUUUUULWUKhWh.',
+  '..hhcKIWLIIIIIILIIKhWWW.',
+  '..hcccKILLLLcLLIIKhhhW..',
+  '...hchhKIIIIIIIIKhhhh...',
+  '....hhhhKKKKKKKKhhhh....',
+  '.....hhhhhhhhhhhhhh.....',
+  '......hhhhhhhhhhhh......',
+];
+
+function drawStar(ctx) {
+  STAR_ROWS.forEach((row, y) => {
+    for (let x = 0; x < S; x++) {
+      const c = STAR_PALETTE[row[x]];
+      if (c) px(ctx, x, y, c);
+    }
+  });
+}
+
+const DRAW = { apple: drawApple, peach: drawPeach, dragon: drawDragon, phoenix: drawPhoenix, star: drawStar };
 
 // Ключи культур (id из data.js), для которых есть красивый спрайт
 export const FRUIT_SPRITE_IDS = Object.keys(DRAW);
