@@ -288,7 +288,7 @@ export const BUILDINGS = {
     id: 'wheel',
     name: 'Колесо',
     icon: '🎡',
-    cost: 50000000,
+    cost: 100000000,
     levelReq: 15,
     desc: 'Раз в минуту салют: 20 секунд каждый сбор даёт урожай ×2',
   },
