@@ -522,8 +522,10 @@ class PixelFarm {
     return lvl > 0 ? UPGRADES.autoHarvest.delays[lvl] : null;
   }
 
+  // Сколько «обычных» мест куплено за всё время: золотая, полученная улучшением синей (conv),
+  // тоже считается, иначе после улучшения освобождалось бы место под новую обычную грядку
   regularCount() {
-    return this.plots.filter((p) => !p.premium).length;
+    return this.plots.filter((p) => !p.premium || p.conv).length;
   }
 
   goldenCount() {
