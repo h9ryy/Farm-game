@@ -2032,69 +2032,79 @@ class PixelFarm {
     }
   }
 
-  // Вспаханная земля под грядками, тропинка к калитке и забор вокруг
+  // Вспаханная земля, тропинка к калитке и забор. Всё повторяет форму построенных грядок и зданий:
+  // там, где клеток нет, виден обычный фон.
   drawFarmland() {
     const ctx = this.ctx;
-    const fb = this.farmBox;
-    if (!fb) return;
+    const cells = [...this.plots, ...this.buildings];
+    if (cells.length === 0) return;
     const t = this.tile;
     const gp = this.gap;
-    const step = t + gp;
-    const W = this.canvas.width;
     const H = this.canvas.height;
-    const x0 = this.gridX + (fb.minX - this.minX) * step;
-    const y0 = this.gridY + (fb.minY - this.minY) * step;
-    const w = fb.cols * t + (fb.cols - 1) * gp;
-    const h = fb.rows * t + (fb.rows - 1) * gp;
+    const set = new Set(cells.map((c) => `${c.x},${c.y}`));
+    const has = (x, y) => set.has(`${x},${y}`);
+    const half = gp / 2;
     const pad = Math.round(t * 0.34);
+    const ext = Math.max(0, pad - half); // насколько земля выступает за клетку
+    const o = Math.round(pad * 0.45); // расстояние забора от края клетки
     const sc = Math.max(0.6, Math.min(t / 96, 1.6));
     const R = (x, y, ww, hh, col) => {
       ctx.fillStyle = col;
       ctx.fillRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
     };
-    const notched = (x, y, ww, hh, n, col) => {
-      R(x + n, y, ww - 2 * n, hh, col);
-      R(x, y + n, ww, hh - 2 * n, col);
-    };
     const hsh = (n) => {
       const v = Math.sin(n * 127.1) * 43758.5453;
       return v - Math.floor(v);
     };
+    const rectOf = (c) => {
+      const { px, py } = this.plotPos(c);
+      return { x: px - half, y: py - half, w: t + gp, h: t + gp };
+    };
+
+    // Калитка: в нижнем ряду, ближе всего к середине фермы
+    const maxRow = Math.max(...cells.map((c) => c.y));
+    const meanX = cells.reduce((a, c) => a + c.x, 0) / cells.length;
+    const bottoms = cells.filter((c) => c.y === maxRow);
+    const gateCell = bottoms.reduce((a, c) => (Math.abs(c.x - meanX) < Math.abs(a.x - meanX) ? c : a));
+    const gr = rectOf(gateCell);
+    const gateX = gr.x + gr.w / 2;
+    const pathW = Math.round(t * 0.9);
+    const gate = pathW / 2 + 4;
 
     // Тропинка вниз от калитки
-    const cxm = x0 + w / 2;
-    const pathW = Math.round(t * 0.9);
-    const yEnd = y0 + h + pad;
-    R(cxm - pathW / 2 - 3, yEnd, pathW + 6, H - yEnd, '#a8844f');
-    R(cxm - pathW / 2, yEnd, pathW, H - yEnd, '#cfae77');
-    for (let yy = yEnd + 6, i = 0; yy < H; yy += 20, i++) {
-      R(cxm - pathW / 2 + 4 + hsh(i) * pathW * 0.8, yy, 4, 3, '#b89560');
-      R(cxm - pathW / 2 + 4 + hsh(i + 50) * pathW * 0.8, yy + 9, 3, 3, '#e2c795');
+    const yStart = gr.y + gr.h;
+    R(gateX - pathW / 2 - 3, yStart, pathW + 6, H - yStart, '#a8844f');
+    R(gateX - pathW / 2, yStart, pathW, H - yStart, '#cfae77');
+    for (let yy = yStart + o + 6, i = 0; yy < H; yy += 20, i++) {
+      R(gateX - pathW / 2 + 4 + hsh(i) * pathW * 0.8, yy, 4, 3, '#b89560');
+      R(gateX - pathW / 2 + 4 + hsh(i + 50) * pathW * 0.8, yy + 9, 3, 3, '#e2c795');
     }
 
-    // Вспаханный участок
-    const px0 = x0 - pad;
-    const py0 = y0 - pad;
-    const pw = w + pad * 2;
-    const ph = h + pad * 2;
-    R(px0 + 4, py0 + 8, pw, ph, 'rgba(0,0,0,0.2)');
-    notched(px0 - 4, py0 - 4, pw + 8, ph + 8, 8, '#6b4a2b');
-    notched(px0, py0, pw, ph, 8, '#a07b4f');
-    for (let yy = py0 + 10; yy < py0 + ph - 8; yy += 14) R(px0 + 8, yy, pw - 16, 3, '#8f6c42');
-    for (let i = 0; i < 40; i++) {
-      R(px0 + 8 + hsh(i) * (pw - 16), py0 + 8 + hsh(i + 90) * (ph - 16), 3, 2, i % 2 ? '#b8946a' : '#7d5c38');
-    }
+    // Вспаханная земля под каждой клеткой (вместе дают общую форму)
+    cells.forEach((c) => {
+      const r = rectOf(c);
+      R(r.x - ext + 4, r.y - ext + 8, r.w + ext * 2, r.h + ext * 2, 'rgba(0,0,0,0.2)');
+    });
+    cells.forEach((c) => {
+      const r = rectOf(c);
+      R(r.x - ext - 4, r.y - ext - 4, r.w + ext * 2 + 8, r.h + ext * 2 + 8, '#6b4a2b');
+    });
+    cells.forEach((c) => {
+      const r = rectOf(c);
+      R(r.x - ext, r.y - ext, r.w + ext * 2, r.h + ext * 2, '#a07b4f');
+    });
+    cells.forEach((c, k) => {
+      const r = rectOf(c);
+      for (let i = 0; i < 6; i++) {
+        R(r.x - ext + 6 + hsh(k * 9 + i) * (r.w + ext * 2 - 12), r.y - ext + 6 + hsh(k * 9 + i + 70) * (r.h + ext * 2 - 12), 3, 2, i % 2 ? '#b8946a' : '#7d5c38');
+      }
+    });
 
-    // Забор
-    const fi = Math.round(pad * 0.55);
-    const fx0 = x0 - fi;
-    const fy0 = y0 - fi;
-    const fx1 = x0 + w + fi;
-    const fy1 = y0 + h + fi;
+    // Забор по внешнему краю формы
     const th = Math.max(3, Math.round(4 * sc));
     const ps = Math.max(6, Math.round(9 * sc));
-    const gate = pathW / 2 + 4;
     const rail = (x, y, ww, hh) => {
+      if (ww <= 0 || hh <= 0) return;
       R(x + 2, y + 3, ww, hh, 'rgba(0,0,0,0.22)');
       R(x, y, ww, hh, '#b8864a');
       if (ww > hh) R(x, y, ww, 1, '#e0b777');
@@ -2106,25 +2116,43 @@ class PixelFarm {
       R(x - ps / 2 + 1, y - ps / 2 + 1, ps - 2, ps - 2, '#c99a5b');
       R(x - ps / 2 + 1, y - ps / 2 + 1, ps - 2, 2, cap || '#e8c48a');
     };
-    rail(fx0, fy0 - th / 2, fx1 - fx0, th);
-    rail(fx0 - th / 2, fy0, th, fy1 - fy0);
-    rail(fx1 - th / 2, fy0, th, fy1 - fy0);
-    rail(fx0, fy1 - th / 2, cxm - gate - fx0, th);
-    rail(cxm + gate, fy1 - th / 2, fx1 - cxm - gate, th);
-    const nx = Math.max(2, Math.round((fx1 - fx0) / (t * 0.6)));
-    const ny = Math.max(2, Math.round((fy1 - fy0) / (t * 0.6)));
-    for (let i = 0; i <= nx; i++) {
-      const x = fx0 + ((fx1 - fx0) * i) / nx;
-      post(x, fy0);
-      if (Math.abs(x - cxm) > gate + ps) post(x, fy1);
-    }
-    for (let j = 1; j < ny; j++) {
-      const y = fy0 + ((fy1 - fy0) * j) / ny;
-      post(fx0, y);
-      post(fx1, y);
-    }
-    post(cxm - gate, fy1, '#ffd166');
-    post(cxm + gate, fy1, '#ffd166');
+    // как продлевать забор на углу: нет соседа = продлеваем, внутренний угол = укорачиваем
+    const ex = (side, diag) => (!side ? o : diag ? -o : 0);
+    const segs = [];
+    cells.forEach((c) => {
+      const r = rectOf(c);
+      const L = has(c.x - 1, c.y);
+      const Rr = has(c.x + 1, c.y);
+      const U = has(c.x, c.y - 1);
+      const D = has(c.x, c.y + 1);
+      if (!U) segs.push({ h: true, a: r.y - o, p0: r.x - ex(L, has(c.x - 1, c.y - 1)), p1: r.x + r.w + ex(Rr, has(c.x + 1, c.y - 1)) });
+      if (!D) segs.push({ h: true, a: r.y + r.h + o, p0: r.x - ex(L, has(c.x - 1, c.y + 1)), p1: r.x + r.w + ex(Rr, has(c.x + 1, c.y + 1)), gate: c === gateCell });
+      if (!L) segs.push({ h: false, a: r.x - o, p0: r.y - ex(U, has(c.x - 1, c.y - 1)), p1: r.y + r.h + ex(D, has(c.x - 1, c.y + 1)) });
+      if (!Rr) segs.push({ h: false, a: r.x + r.w + o, p0: r.y - ex(U, has(c.x + 1, c.y - 1)), p1: r.y + r.h + ex(D, has(c.x + 1, c.y + 1)) });
+    });
+    const posts = new Map();
+    segs.forEach((sg) => {
+      const len = sg.p1 - sg.p0;
+      if (sg.gate) {
+        rail(sg.p0, sg.a - th / 2, gateX - gate - sg.p0, th);
+        rail(gateX + gate, sg.a - th / 2, sg.p1 - gateX - gate, th);
+      } else if (sg.h) {
+        rail(sg.p0, sg.a - th / 2, len, th);
+      } else {
+        rail(sg.a - th / 2, sg.p0, th, len);
+      }
+      const n = Math.max(1, Math.round(len / (t * 0.6)));
+      for (let i = 0; i <= n; i++) {
+        const p = sg.p0 + (len * i) / n;
+        const x = sg.h ? p : sg.a;
+        const y = sg.h ? sg.a : p;
+        if (sg.gate && Math.abs(x - gateX) < gate + ps) continue;
+        posts.set(`${Math.round(x)},${Math.round(y)}`, [x, y]);
+      }
+    });
+    posts.forEach(([x, y]) => post(x, y));
+    post(gateX - gate, gr.y + gr.h + o, '#ffd166');
+    post(gateX + gate, gr.y + gr.h + o, '#ffd166');
   }
 
   // Рисует одну грядку в координатах 96x96 (масштаб задаётся снаружи)
