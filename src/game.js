@@ -7,7 +7,8 @@ import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, GOLDEN_MAX, GOLDEN_UPGRAD
 // Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
 const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 480, 1500, 2300, 3300, 4500, 5600, 6800, 8100, 9500];
 const MAX_LEVEL = LEVEL_XP.length - 1;
-const GRID = 6;       // поле 6x6 (грядки и здания)
+const MAX_SPAN = 8;   // ферму можно строить в любую сторону, но рамка вокруг всего не больше 8x8 клеток
+const COORD_LIMIT = 30; // защита от «битых» координат в сохранении
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
 const SAVE_VERSION = 3;
 const GROW_TAP_MAX = 2; // сколько раз за один рост тап по ростку приносит монету
@@ -564,15 +565,29 @@ class PixelFarm {
     return type === 'golden' ? this.nextGoldenCost() : this.nextRegularCost();
   }
 
-  // Свободные клетки, которые касаются уже купленных грядок
+  // Свободные клетки, которые касаются уже купленных грядок. Строить можно в любую сторону,
+  // но рамка вокруг всей фермы не должна стать больше MAX_SPAN x MAX_SPAN.
   plotSlots() {
+    const taken = new Set([...this.plots, ...this.buildings].map((c) => `${c.x},${c.y}`));
+    const cells = [...this.plots, ...this.buildings];
+    let minX = Math.min(...cells.map((c) => c.x));
+    let maxX = Math.max(...cells.map((c) => c.x));
+    let minY = Math.min(...cells.map((c) => c.y));
+    let maxY = Math.max(...cells.map((c) => c.y));
     const slots = [];
-    for (let y = 0; y < GRID; y++) {
-      for (let x = 0; x < GRID; x++) {
-        if (this.plots.some((p) => p.x === x && p.y === y) || this.buildings.some((b) => b.x === x && b.y === y)) continue;
-        if (this.plots.some((p) => Math.abs(p.x - x) + Math.abs(p.y - y) === 1)) slots.push({ x, y });
-      }
-    }
+    const seen = new Set();
+    this.plots.forEach((p) => {
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+        const x = p.x + dx;
+        const y = p.y + dy;
+        const key = `${x},${y}`;
+        if (taken.has(key) || seen.has(key)) return;
+        seen.add(key);
+        if (Math.max(maxX, x) - Math.min(minX, x) + 1 > MAX_SPAN) return;
+        if (Math.max(maxY, y) - Math.min(minY, y) + 1 > MAX_SPAN) return;
+        slots.push({ x, y });
+      });
+    });
     return slots;
   }
 
@@ -1524,11 +1539,11 @@ class PixelFarm {
       '<div class="shop-title">ГРЯДКИ</div>' +
       card('🟫', 'Новая грядка', 'Ставишь сам, рядом с уже имеющимися',
         `Обычных: ${this.regularCount()} из ${START_PLOTS.length + PLOT_COSTS.length}`,
-        'plot', canReg, regMax, regMax ? 'МАКС' : '💰' + regCost) +
+        'plot', canReg, regMax, regMax ? (regCost === null ? 'МАКС' : 'НЕТ МЕСТА') : '💰' + regCost) +
       '<div class="shop-title">⭐ ЗОЛОТЫЕ ГРЯДКИ</div>' +
       card('⭐', 'Золотая грядка', `Мифические плоды, сама сажает и собирает, +${bonusPct}% роста соседям`,
         `Золотых: ${this.goldenCount()} из ${GOLDEN_MAX}`,
-        'golden', canGold, goldMax, goldMax ? 'МАКС' : '💰' + goldCost);
+        'golden', canGold, goldMax, goldMax ? (goldCost === null ? 'МАКС' : 'НЕТ МЕСТА') : '💰' + goldCost);
 
     // Вкладка «Здания»
     let canBld = false;
@@ -1538,7 +1553,7 @@ class PixelFarm {
       const off = built || locked || noSlots;
       const can = !off && this.coins >= def.cost;
       if (can) canBld = true;
-      const label = built ? 'ЕСТЬ' : locked ? `УР.${def.levelReq}` : '💰' + def.cost;
+      const label = built ? 'ЕСТЬ' : locked ? `УР.${def.levelReq}` : noSlots ? 'НЕТ МЕСТА' : '💰' + def.cost;
       return card(def.icon, def.name, def.desc, built ? 'Построено' : `Открывается с ${def.levelReq} уровня`, 'b:' + def.id, can, off, label);
     }).join('');
 
@@ -1719,7 +1734,7 @@ class PixelFarm {
       if (Array.isArray(saved.buildings)) {
         saved.buildings.forEach((sb) => {
           const def = BUILDINGS[sb.id];
-          if (!def || this.hasBuilding(sb.id) || !(sb.x >= 0 && sb.x < GRID && sb.y >= 0 && sb.y < GRID)) return;
+          if (!def || this.hasBuilding(sb.id) || !(Number.isInteger(sb.x) && Number.isInteger(sb.y) && Math.abs(sb.x) <= COORD_LIMIT && Math.abs(sb.y) <= COORD_LIMIT)) return;
           const b = { id: sb.id, x: sb.x, y: sb.y, t: 0 };
           if (sb.id === 'coop') {
             b.eggs = Math.min(BUILDING_SETTINGS.eggMax, sb.eggs || 0);
@@ -1751,7 +1766,7 @@ class PixelFarm {
             x = sp.x;
             y = sp.y;
           }
-          if (!(x >= 0 && x < GRID && y >= 0 && y < GRID)) return;
+          if (!(Number.isInteger(x) && Number.isInteger(y) && Math.abs(x) <= COORD_LIMIT && Math.abs(y) <= COORD_LIMIT)) return;
           if (loaded.some((l) => l.x === x && l.y === y)) return;
           const p = { x, y, crop: null, state: 'empty', plantedAt: 0, ripeAt: 0, premium: !!sp.premium, upgraded: !!sp.upgraded, conv: !!sp.conv, lastCrop: CROPS[sp.lastCrop] ? sp.lastCrop : null };
           if (sp.state !== 'empty' && CROPS[sp.crop]) {
