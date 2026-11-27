@@ -68,6 +68,283 @@ const GROWTH = {
   phoenix: { kind: 'magic', leaf: '#3fa34d', dark: '#2d7a38', fruit: '#ff7a1a' },
 };
 
+// Пиксельные спрайты зданий 32x32: каждая буква это цвет, точка это пусто
+const BUILDING_PAL = {"x": "rgba(0,0,0,0.22)", "k": "#2e1a0e", "w": "#c8844a", "W": "#e0a766", "d": "#8a5a2b", "D": "#5a3818", "r": "#d9442e", "R": "#a82a1c", "q": "#ff7a5c", "h": "#ffffff", "g": "#e6e6e0", "G": "#b8b8b0", "s": "#a8adb5", "S": "#7c828c", "t": "#d0d4da", "T": "#555b66", "b": "#3b8fe0", "B": "#2468b0", "c": "#7cc4ff", "C": "#d6f0ff", "y": "#ffd23f", "Y": "#e0a81c", "z": "#fff3a0", "o": "#f08a1c", "O": "#c4640f", "n": "#4cae4f", "N": "#2d7a38", "m": "#8be0a0", "a": "#e8c872", "A": "#b89440", "e": "#e8c98a", "E": "#c9a05a", "p": "#8e44ad", "i": "#ff8fa3", "K": "#1a1a1a", "u": "#6b4423"};
+const BUILDING_ART = {
+  coop: [
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '.............kkkkkkk............',
+    '...........kkqRRRRRRk...........',
+    '.........kkqrrrrrrrrrkk.........',
+    '.......kkqRRRRRRRRRRRRRkk.......',
+    '......kqrrrrrrrrrrrrrrrrrk......',
+    '....kkqRRRRRRRRRRRRRRRRRRRkk....',
+    '..kkqrrrrrrrrrrrrrrrrrrrrrrrkk..',
+    '.kqRRRRRRRRRRRRRRRRRRRRRRRRRRRk.',
+    'kqrrrrrrrrrrrrrrrrrrrrrrrrrrrrrk',
+    'qRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR',
+    'rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr',
+    'kkRRRRRRRRRRRRRRRRRRRRRRRRRRRRkk',
+    '..kkkkkwwdwwdwwdwwdwwdwwwkkkkk..',
+    '......kwwdwwdwDDDDdwwdwwwk......',
+    '......kwwydydDDDDDDwwdwwwk......',
+    '......kwwddddDDDDDDwwdwwwk.kk...',
+    '......kwwydydDDKKDDwwdwwwkkrrk..',
+    '......kwwdwwdDKKKKDwwdwwwkhrhk..',
+    '...kkkkwwdwwdDKKKKDwwdgghhhhKok.',
+    '..kaaaawwdwwdDKKKKDwwdgghhhhkk..',
+    '.kaaaaAawdwwdDKKKKDwwdhhhhhhk...',
+    '.kaAaaaawdwwdDKKKKDwwdhhoohhk...',
+    '.kaaaAaaSSSSSDKKKKDSSSShoohk....',
+    '.kaaaaaaTTTTTddddddTTTTTookx....',
+    '..kkkkkkkkkkkkkkkkkkkkkkkkxxx...',
+    '...xxxxxxxxxxxxxxxxxxxxxxxxxx...',
+    '.......xxxxxxxxxxxxxxxxxx.......',
+    '................................',
+  ],
+  shop: [
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '...kkkkkkkkkkkkkkkkkkkkkkkkk....',
+    '..kRRRRRRRRRRRRRRRRRRRRRRRRRkk..',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '..krrrhhhrrrhhhrrrhhhrrrhhhrrrk.',
+    '...krkkhkkrkkhDkrkDhkkrkkhkkrk..',
+    '....kddWWWWWAADAAADAWWWWWddkk...',
+    '....kddWWWrWaaaYYaaaWWWWnddk....',
+    '....krhrrhrraaaYzaaamnnmnndk....',
+    '....krrrrrrraaaaaaaannnnnndk....',
+    '....krrrrrrrooooooonnnnnnndk....',
+    '....kddddddddddddddddddddddk....',
+    '...kWWWWWWWWWWWWWWWWWWWWWWWWk...',
+    '...kWWWWWWWWWWWWWWWWWWWWWWWWk...',
+    '...kwwwwwwdwwwwwwwwwwdwwwwwwk...',
+    '...kwwwwwwdwwwwwwwwwwdwwwwwwk...',
+    '...kwwwwwwdwwwwwwwwwwdwwwwwwk...',
+    '...kwwwwwwdwwwwwwwwwwdwwwwwwk...',
+    '...kwwwwwwdwwwwwwwwwwdwwwwwwk...',
+    '...kDDDDDDDDDDDDDDDDDDDDDDDDk...',
+    '..kTTTTTTTTTTTTTTTTTTTTTTTTTTk..',
+    '..xkkkkkkkkkkkkkkkkkkkkkkkkkkx..',
+    '...xxxxxxxxxxxxxxxxxxxxxxxxxx...',
+    '......xxxxxxxxxxxxxxxxxxxx......',
+    '................................',
+  ],
+  apiary: [
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '...........k.k..................',
+    '..........kCkCk.................',
+    '..........kyKyk.................',
+    '.....kkkkkkyyyk.k.k.............',
+    '....kddddddddk.kCkCk..k.k.......',
+    '...kkddddddddkkkyKyk.kCkCk......',
+    '..kWWWWWWWWWWWWkyyykkkyKykk.k...',
+    '..kddddddddddddkkkkdddyyydCkCk..',
+    '..kddddddddddddk.kkdddddddyKyk..',
+    '...kzzzzzzzzzzk.kWWWWWWWWWyyyk..',
+    '...kyyyyyyyyyyk.kddddddddddddk..',
+    '...kyyyyyyyyyyk.kddddddddddddk..',
+    '...kyyyyyyyyyyk..kzzzzzzzzzzk...',
+    '...kOOOOOOOOOOk..kyyyyyyyyyyk...',
+    '...kyyyyyyyyyyk..kyyyyyyyyyyk...',
+    '...kYYYYYYYYYYk..kyyyyyyyyyyk...',
+    '...kYYYYYYYYYYk..kOOOOOOOOOOk...',
+    '...kYYYKKKKYYYk..kyyyyyyyyyyk...',
+    '...kOOOOOOOOOOk..kYYYYYYYYYYk...',
+    '....kDDkkkkDDk...kYYYYYYYYYYk...',
+    '....kDDk..kDDk...kYYYKKKKYYYk...',
+    '..k.kDDk..kDDkkk.kOOOOOOOOOOk.k.',
+    '.kik.kk..xxkkkypkxkDDkkkkDDk.kik',
+    '.knkxxxxxxxxxknnkxkDDkxxkDDk.knk',
+    '.kNkxxxxxxxxxkNNkxkDDkxxkDDkxkNk',
+    '..kxxxxxxxxxxxkkxxxkkxxxxkkxx.k.',
+    '.......xxxxxxxxxxxxxxxxxx.......',
+    '................................',
+  ],
+  scarecrow: [
+    '................................',
+    '............kkkkkkkk............',
+    '...........kzzzzzzzzk...........',
+    '...........kaaaaaaaak...........',
+    '........kkkkaaaaaaaakkkk........',
+    '.......kddddrrrrrrrrddddk.......',
+    '.......kddddddddddddddddk.......',
+    '........kkkddddddddddkkk........',
+    '...........keeeeeeeek...........',
+    '...........keeKeeeKek...........',
+    '...........keeKKeKKek...........',
+    '...kkkk....kEEKEEEKEk...........',
+    '..koKKKk....keKKKKKk......k.k...',
+    '.kaKKKKKkkkkkkeeeekkkkkkkkakak..',
+    '.kaaaWWWWWWWWWWWWWWWWWWWWWaaak..',
+    '.kaaadddddddddddddddddddddaaak..',
+    '.kaaakkkkkkBBBBBBBBBBkkkkkaaak..',
+    '..kak.....kBBBBBBBBBBk....kak...',
+    '...k......kbbbbBBbyyyk.....k....',
+    '..........kbbbbBBbyYyk..........',
+    '..........kBBBBBBByyyk..........',
+    '..........kbbbbBBbbbbk..........',
+    '..........kbrrrBBbbbbk..........',
+    '..........kbrRrBBbbbbk..........',
+    '..........kbrrrBBbbbbk..........',
+    '..........kaaaaaaaaaak..........',
+    '..........kaaaaaaaaaak..........',
+    '......xxxxxkakaWdkakakxxxx......',
+    '.....xxxxxxxkxkkkxkxkxxxxxx.....',
+    '......xxxxxxxxxxxxxxxxxxxx......',
+    '.........xxxxxxxxxxxxxx.........',
+    '................................',
+  ],
+  barn: [
+    '............kkkDDkyk............',
+    '...........kyDDDDDDk............',
+    '............kkkDDkk.............',
+    '............kkkDDkkkk...........',
+    '..........kktSSSSSSSSk..........',
+    '........kktssssssssssskk........',
+    '......kktSSSSSSSSSSSSSSSkk......',
+    '....kktssssssssssssssssssskk....',
+    '..kktSSSSSSSSShhhhSSSSSSSSSSkk..',
+    '.ktssssssssssshaahssssssssssssk.',
+    '.ktSSSSSSSSSSShaahSSSSSSSSSSSSSk',
+    'ktsssssssssssshaahsssssssssssssk',
+    'ktSSSSSSSSSSSShaahSSSSSSSSSSSSSS',
+    'tssssssssssssshDDhssssssssssssss',
+    'tSTTTTTTTTTTTTTTTTTTTTTTTTTTTTSS',
+    'kkkkrRrrRrrRrrRrrRrrRrrRrrRrkkkk',
+    '...krRrrRrrRrrRrrRrrRrrRrrRrk...',
+    '...krRrrRrrRrrRrrRrrRrrRrrRrk...',
+    '...krRrrRhhhhhhDDhhhhhhRrrRrk...',
+    '...krRrrRhhRRRRDDRRRRhhRrrRrk...',
+    '...krRrrRhRhRRRDDRRRhRhRrrRrk...',
+    '...krRrrRhRRhRRDDRRhRRhRrrRrk...',
+    '...krRrrRhRRRhRDDRhRRRhRrrRrk...',
+    '...krRrrRhRRRRhDDhRRRRhRrrRrk...',
+    '...krRrrRhRRRRRhhRRRRRhRrrRrk...',
+    '...krRrrRhRRRRRhhRRRRRhRrrRrk...',
+    '..kTTTTTTTTTTTTTTTTTTTTTTTTTTk..',
+    '..kTTTTTTTTTTTTTTTTTTTTTTTTTTk..',
+    '..xkkkkkkkkkkkkkkkkkkkkkkkkkkx..',
+    '..xxxxxxxxxxxxxxxxxxxxxxxxxxxx..',
+    '.....xxxxxxxxxxxxxxxxxxxxxx.....',
+    '................................',
+  ],
+  castle: [
+    '....kDrrrk................kDrrrk',
+    '....kDrrrk................kDrrrk',
+    '...kbDkkk................kbDkkk.',
+    '..kBBBBk................kBBBBk..',
+    '..kbbbbk................kbbbbk..',
+    '.kBBBBBBk..............kBBBBBBk.',
+    'kbbbbbbbbk............kbbbbbbbbk',
+    'kBBBBBBBBk............kBBBBBBBBk',
+    'bbbbbbbbbbk..........kbbbbbbbbbb',
+    'kBBBBBBBBk..kk..kk..kkkBBBBBBBBk',
+    '.ktttttSttkkttkkttkkttkktttttSk.',
+    '.kssssssttkkttkkttkkttkkssssssk.',
+    '.ktttttStttttttttttttttttttttSk.',
+    '.kttKKtStttttttyytttttttttKKtSk.',
+    '.kttKKtSssssssszzsssssssttKKtSk.',
+    '.kssKKssssSSSsSyysSSSsSSssKKssk.',
+    '.kttKKtSsssKKsDDDDsKKsssttKKtSk.',
+    '.ktttttSsssKKDSDSDSKKssstttttSk.',
+    '.ktttttSsssKKDSDSDSKKssstttttSk.',
+    '.kssssssSSSsSDSDSDSsSSSsssssssk.',
+    '.ktttttSsssssDSDSDSssssstttttSk.',
+    '.ktttttSsssssSSSSSSssssstttttSk.',
+    '.ktttttSsssssDSDSDSssssstttttSk.',
+    '.kssssssssSSSDSDSDSSSsSSssssssk.',
+    '.ktttttSsssssSSSSSSssssstttttSk.',
+    '.ktttttSsssssDSDSDSssssstttttSk.',
+    '.ktttttSsssssDSDSDSssssstttttSk.',
+    'kTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTk',
+    '.kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.',
+    '.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.',
+    '.....xxxxxxxxxxxxxxxxxxxxxx.....',
+    '................................',
+  ],
+  fountain: [
+    '................................',
+    '................................',
+    '................................',
+    '...............kk...............',
+    '..............kyyk..............',
+    '.............kyzyyk.............',
+    '..............kyyk..............',
+    '..............kCCk..............',
+    '..............kCCk..............',
+    '..............kCCk..............',
+    '..........kkkksCCskkkk..........',
+    '.........ksscccCCcccssk.........',
+    '........kscccccCCcccccsk........',
+    '........kssccccccccccssk........',
+    '.........kssssssssssssk.........',
+    '..........kkkksssskkkk..........',
+    '.........kkkkktttSkkkkk.........',
+    '......kkkssssstttSssssskkk......',
+    '....kksssbcccctttScbbbbssskk....',
+    '...kssbccccccctttSccccbbbbssk...',
+    '..ksbbcccCCCCCtttScccccbbbbbsk..',
+    '.kssbbcccccccctttScccccbbbbbssk.',
+    '.kssbbbcccccccccccccccbbbbbbssk.',
+    '.kssbbbbbbcccccccccbbbbbbbbbssk.',
+    '.kTsssbbbbbbbbbbbbbbbbbbbbsssTk.',
+    '..kTTssssbbbbbbbbbbbbbbssssTTk..',
+    '...kTTTssssssssssssssssssTTTk...',
+    '....kkTTTTTssssssssssTTTTTkk....',
+    '..xxxxkkkTTTTTTTTTTTTTTkkkxxxx..',
+    '..xxxxxxxkkkkkkkkkkkkkkxxxxxxx..',
+    '.....xxxxxxxxxxxxxxxxxxxxxx.....',
+    '................................',
+  ],
+  wheel: [
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '..............kkkk..............',
+    '.............kYYYYk.............',
+    '.............kYzzYk.............',
+    '.............kYzzYDk............',
+    '.............kYYYYDDk...........',
+    '............kDdDkkdDDk..........',
+    '............kDdDkkdDDk..........',
+    '...........kDdDk..kdDDk.........',
+    '..........kDDdk...kdDDDk........',
+    '.........kDDdDk....kdDDDk.......',
+    '.........kDDdk.....kdDDDk.......',
+    '........kDDdk.......kdDDDk......',
+    '.......kDDDdk.......kdkDDDk.....',
+    '.......kDDdk.........kdDDDk.....',
+    '...kkkkDDDdkkkkkkkkkkkdkDDDkk...',
+    '..kTSSSSSSSSSSSSSSSSSSSSSSSSTk..',
+    '..xkkkkDDkkkkkkkkkkkkkkkkkDDkx..',
+    '..xxxxxkkxxxxxxxxxxxxxxxxxkkxx..',
+    '......xxxxxxxxxxxxxxxxxxxx......',
+    '................................',
+  ],
+};
+
 class PixelFarm {
   constructor() {
     this.canvas = document.getElementById('farmCanvas');
@@ -1088,6 +1365,23 @@ class PixelFarm {
   // Рисуем спрайты мифических плодов один раз при запуске
   buildSprites() {
     this.sprites = {};
+    this.bldSprites = {};
+    Object.keys(BUILDING_ART).forEach((id) => {
+      const c = document.createElement('canvas');
+      c.width = 32;
+      c.height = 32;
+      const g = c.getContext('2d');
+      BUILDING_ART[id].forEach((row, y) => {
+        for (let x = 0; x < 32; x++) {
+          const col = BUILDING_PAL[row[x]];
+          if (col) {
+            g.fillStyle = col;
+            g.fillRect(x, y, 1, 1);
+          }
+        }
+      });
+      this.bldSprites[id] = c;
+    });
     FRUIT_SPRITE_IDS.forEach((id) => {
       const c = makeFruitSprite(id);
       if (c) this.sprites[id] = c;
@@ -2479,44 +2773,104 @@ class PixelFarm {
     ctx.restore();
   }
 
+  // Брызги фонтана (в координатах 96x96); во время ускорения их больше и они золотые
+  drawFountainWater(b, now) {
+    const ctx = this.ctx;
+    const boosted = b.boost > 0;
+    const n = boosted ? 12 : 6;
+    for (let i = 0; i < n; i++) {
+      const ph = (now / (boosted ? 520 : 760) + i / n) % 1;
+      const dx = (i - (n - 1) / 2) * (boosted ? 4.2 : 8) * ph;
+      const y = 19 - 22 * ph + 64 * ph * ph;
+      ctx.globalAlpha = Math.max(0, 1 - ph * ph);
+      ctx.fillStyle = boosted ? '#ffe27a' : '#d6f0ff';
+      ctx.fillRect(Math.round(48 + dx), Math.round(y), 3, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Колесо обозрения: крутится, кабинки остаются ровными; во время бонуса вертится быстрее
+  drawWheelTop(b, now) {
+    const ctx = this.ctx;
+    const cx = 48;
+    const cy = 45;
+    const R = 28;
+    const fast = b.boost > 0;
+    const rot = now / (fast ? 1100 : 3600);
+    const dark = '#2e1a0e';
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 45) {
+      const x = Math.round(cx + Math.cos(a) * R);
+      const y = Math.round(cy + Math.sin(a) * R);
+      ctx.fillStyle = dark;
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 45) {
+      ctx.fillStyle = fast ? '#fff3a0' : '#e8eef5';
+      ctx.fillRect(Math.round(cx + Math.cos(a) * R) - 1, Math.round(cy + Math.sin(a) * R) - 1, 2, 2);
+    }
+    for (let k = 0; k < 8; k++) {
+      const a = rot + (k * Math.PI) / 4;
+      for (let r = 4; r < R; r += 2) {
+        ctx.fillStyle = '#c9d3df';
+        ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 2, 2);
+      }
+    }
+    const colors = ['#e74c3c', '#3b8fe0', '#ffd23f', '#4cae4f', '#a55eea', '#f08a1c', '#ff8fa3', '#7cc4ff'];
+    for (let k = 0; k < 8; k++) {
+      const a = rot + (k * Math.PI) / 4;
+      const x = Math.round(cx + Math.cos(a) * R);
+      const y = Math.round(cy + Math.sin(a) * R);
+      ctx.fillStyle = dark;
+      ctx.fillRect(x - 1, y, 2, 4);
+      ctx.fillRect(x - 5, y + 3, 10, 9);
+      ctx.fillStyle = colors[k];
+      ctx.fillRect(x - 4, y + 4, 8, 7);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(x - 4, y + 4, 8, 2);
+    }
+    ctx.fillStyle = dark;
+    ctx.fillRect(cx - 5, cy - 5, 10, 10);
+    ctx.fillStyle = '#e0a81c';
+    ctx.fillRect(cx - 4, cy - 4, 8, 8);
+    ctx.fillStyle = '#fff3a0';
+    ctx.fillRect(cx - 2, cy - 2, 4, 4);
+  }
+
   drawBuilding(b) {
     const ctx = this.ctx;
     const S = BASE;
-    const def = BUILDINGS[b.id];
     const now = Date.now();
     const SET = BUILDING_SETTINGS;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(3, 6, S, S);
-    ctx.fillStyle = '#5c381e';
-    ctx.fillRect(0, 0, S, S);
-    ctx.fillStyle = '#d9c7a0';
-    ctx.fillRect(3, 3, S - 6, S - 6);
-    ctx.fillStyle = '#e8dbb8';
-    ctx.fillRect(3, 3, S - 6, 3);
-    ctx.fillStyle = '#c9b389';
-    ctx.fillRect(7, 7, S - 14, S - 14);
+    const spr = this.bldSprites && this.bldSprites[b.id];
+    if (spr) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(spr, 0, 0, S, S);
+      ctx.restore();
+    }
+    if (b.id === 'fountain') this.drawFountainWater(b, now);
+    if (b.id === 'wheel') this.drawWheelTop(b, now);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `46px ${EMOJI_FONT}`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(def.icon, S / 2, S / 2 - 4 + Math.round(Math.sin(now / 400) * 2));
-
+    // Подписи внизу, на «земле» под зданием
     const pill = (text, color) => {
       ctx.fillStyle = '#000000';
-      ctx.fillRect(12, 66, S - 24, 22);
+      ctx.fillRect(8, 79, S - 16, 16);
       ctx.fillStyle = color;
-      ctx.fillRect(14, 68, S - 28, 18);
-      ctx.font = `10px 'Press Start 2P', ${EMOJI_FONT}`;
+      ctx.fillRect(10, 81, S - 20, 12);
+      ctx.font = `8px 'Press Start 2P', ${EMOJI_FONT}`;
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(text, S / 2, 78);
+      ctx.fillText(text, S / 2, 88);
     };
     const bar = (frac, color) => {
       ctx.fillStyle = '#000000';
-      ctx.fillRect(13, 77, S - 26, 8);
+      ctx.fillRect(13, 84, S - 26, 9);
+      ctx.fillStyle = '#3a2412';
+      ctx.fillRect(14, 85, S - 28, 7);
       ctx.fillStyle = color;
-      ctx.fillRect(14, 78, Math.round((S - 28) * Math.min(1, frac)), 6);
+      ctx.fillRect(14, 85, Math.round((S - 28) * Math.min(1, frac)), 7);
     };
 
     if (b.id === 'coop') {
