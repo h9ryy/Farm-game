@@ -1031,6 +1031,9 @@ class PixelFarm {
     await this.loadSave();
     this.queuePopups();
 
+    // Проверка экрана «Игра пройдена»: открой игру с адресом вида http://127.0.0.1:5500/?win (перед релизом убрать)
+    if ((window.location.search || '').includes('win')) setTimeout(() => this.startWin(), 800);
+
     setInterval(() => this.saveGame(), 5000);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.saveGame();
