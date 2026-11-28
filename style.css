@@ -529,3 +529,12 @@ html, body {
   from { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 4px #6f45d9; }
   to { box-shadow: inset -3px -3px 0 #e6d3af, inset 3px 3px 0 #ffffff, 0 0 16px #b79bff; }
 }
+
+/* Для Яндекс Игр: без обновления свайпом и без меню по долгому нажатию */
+html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
+
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('fonts/PressStart2P-Regular.ttf') format('truetype');
+  font-display: swap;
+}

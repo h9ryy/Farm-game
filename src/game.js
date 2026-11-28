@@ -7,6 +7,8 @@ import { CROPS, START_PLOTS, PLOT_COSTS, GOLDEN_COSTS, GOLDEN_MAX, GOLDEN_UPGRAD
 // Опыт за сбор зависит от времени роста культуры (см. xpOf). Нужно для каждого уровня (индекс = уровень)
 const LEVEL_XP = [0, 0, 8, 24, 48, 104, 200, 480, 1500, 2300, 3300, 4500, 5600, 6800, 8100, 9500];
 const MAX_LEVEL = LEVEL_XP.length - 1;
+// Перед выпуском игры поставь false: отключит служебные адреса ?reset и ?win
+const DEV_TOOLS = true;
 const MAX_SPAN = 8;   // ферму можно строить в любую сторону, но рамка вокруг всего не больше 8x8 клеток
 const COORD_LIMIT = 30; // защита от «битых» координат в сохранении
 const BASE = 96;      // базовый размер грядки при рисовании (дальше масштабируется)
@@ -1023,21 +1025,33 @@ class PixelFarm {
     this.setupInputs();
 
     // Сброс прогресса: открой игру с адресом вида http://127.0.0.1:5500/?reset
-    if ((window.location.search || '').includes('reset')) {
+    if (DEV_TOOLS && (window.location.search || '').includes('reset')) {
       try { localStorage.removeItem('pixel_farm_save'); } catch (e) {}
       if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname);
     }
     await sdk.init();
     await this.loadSave();
     this.queuePopups();
+    sdk.gameReady(); // сообщаем Яндексу, что игра загружена и можно играть
 
     // Проверка экрана «Игра пройдена»: открой игру с адресом вида http://127.0.0.1:5500/?win (перед релизом убрать)
-    if ((window.location.search || '').includes('win')) setTimeout(() => this.startWin(), 800);
+    if (DEV_TOOLS && (window.location.search || '').includes('win')) setTimeout(() => this.startWin(), 800);
 
     setInterval(() => this.saveGame(), 5000);
+
+    // Звук замолкает, когда игру свернули или переключились на другую вкладку (требование Яндекса)
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.saveGame();
+      if (document.hidden) {
+        this.saveGame();
+        sound.setPaused(true);
+      } else if (document.hasFocus()) {
+        sound.setPaused(false);
+      }
     });
+    window.addEventListener('blur', () => sound.setPaused(true));
+    window.addEventListener('focus', () => sound.setPaused(false));
+    window.addEventListener('pagehide', () => this.saveGame());
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
 
     requestAnimationFrame((t) => this.loop(t));
   }
@@ -2182,7 +2196,8 @@ class PixelFarm {
       });
     }
     sound.playTone(130 + Math.random() * 150, 'triangle', 0.12, 0.06);
-    if (this.sparks.length > 1500) this.sparks.splice(0, this.sparks.length - 1500);
+    const cap = this.canvas.width < 600 ? 600 : 1500;
+    if (this.sparks.length > cap) this.sparks.splice(0, this.sparks.length - cap);
   }
 
   updateFireworks(dt) {

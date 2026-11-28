@@ -3,6 +3,7 @@ class SoundManager {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.paused = false; // игра свёрнута или потеряла фокус: звука нет
     this.initialized = false;
   }
 
@@ -20,10 +21,21 @@ class SoundManager {
   }
 
   ensureContext() {
+    if (this.paused) return;
     if (!this.initialized) this.init();
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+  }
+
+  // Вызывается, когда вкладку свернули или вернули
+  setPaused(value) {
+    this.paused = !!value;
+    if (!this.ctx) return;
+    try {
+      if (this.paused) this.ctx.suspend();
+      else if (!this.muted) this.ctx.resume();
+    } catch (e) {}
   }
 
   toggleMute() {
@@ -32,7 +44,7 @@ class SoundManager {
   }
 
   playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.15) {
-    if (this.muted) return;
+    if (this.muted || this.paused) return;
     this.ensureContext();
     if (!this.ctx) return;
 
@@ -61,7 +73,7 @@ class SoundManager {
   }
 
   playWater() {
-    if (this.muted) return;
+    if (this.muted || this.paused) return;
     this.ensureContext();
     if (!this.ctx) return;
     try {
@@ -81,10 +93,9 @@ class SoundManager {
   }
 
   playHarvest() {
-    if (this.muted) return;
+    if (this.muted || this.paused) return;
     this.ensureContext();
     if (!this.ctx) return;
-    const now = this.ctx.currentTime;
     [440, 554, 659].forEach((freq, i) => {
       setTimeout(() => {
         this.playTone(freq, 'sine', 0.15, 0.14);
@@ -93,7 +104,7 @@ class SoundManager {
   }
 
   playSell() {
-    if (this.muted) return;
+    if (this.muted || this.paused) return;
     this.ensureContext();
     if (!this.ctx) return;
     [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
@@ -104,7 +115,7 @@ class SoundManager {
   }
 
   playUnlock() {
-    if (this.muted) return;
+    if (this.muted || this.paused) return;
     this.ensureContext();
     if (!this.ctx) return;
     [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
